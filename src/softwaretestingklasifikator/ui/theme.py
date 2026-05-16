@@ -73,7 +73,7 @@ UKONCIL_FG = QColor(110, 110, 110)
 # Aplikuje se na buňky, které nemají vlastní stavovou barvu (známka, docházka,
 # pokus, …). Záměrně velmi světlé, aby byly text a kontrastní stavy čitelné.
 GROUP_BG = {
-    "badge": QColor(245, 245, 250),     # rank, repetent, istqb
+    "badge": QColor(218, 225, 240),     # rank, repetent, istqb, ukoncil — výraznější modro-šedá pro viditelnost checkboxů
     "identity": QColor(225, 235, 250),  # os_cislo, prijmeni, jmeno (světle modrá)
     "tests": QColor(232, 245, 232),     # test1, test2 (světle zelená)
     "project": QColor(255, 245, 220),   # projekt, projekt% (světle žlutá)

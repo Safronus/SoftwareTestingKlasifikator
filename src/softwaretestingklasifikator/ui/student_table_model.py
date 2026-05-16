@@ -17,6 +17,7 @@ from softwaretestingklasifikator.config import (
     MAX_TEST2,
     POINTS_DECIMALS,
 )
+from softwaretestingklasifikator.domain.bonus import suggest_allocation
 from softwaretestingklasifikator.domain.grading import GradeResult, evaluate
 from softwaretestingklasifikator.domain.models import (
     POKUS_LABELS,
@@ -67,19 +68,20 @@ def _test_status_fg(pure: float, total: float, gate: float) -> QColor:
 
 # (klíč, label, editable, min_width, skupina)
 # První sloupec = osobní číslo. Pořadí / Repetent / CTFL / Ukončil jsou
-# umístěny mezi Známkou a Komentářem.
+# umístěny mezi Známkou a Komentářem. Identita (os_cislo, příjmení, jméno)
+# a Pokus jsou needitovatelné (přicházejí z importu / odvozují se).
 COLUMNS: tuple[tuple[str, str, bool, int, str], ...] = (
     ("os_cislo", "Os. číslo", False, 80, "identity"),
-    ("prijmeni", "Příjmení", True, 130, "identity"),
-    ("jmeno", "Jméno", True, 110, "identity"),
+    ("prijmeni", "Příjmení", False, 130, "identity"),
+    ("jmeno", "Jméno", False, 110, "identity"),
     ("test1", "Test 1", True, 60, "tests"),
     ("test2", "Test 2", True, 60, "tests"),
     ("projekt", "Projekt", True, 70, "project"),
     ("projekt_pct", "Projekt %", False, 70, "project"),
-    ("bonus_total", "Bonus", False, 150, "bonus"),
+    ("bonus_total", "Bonus", True, 150, "bonus"),
     ("dochazka", "Docházka", True, 70, "meta"),
     ("datum_odevzdani", "Odevzdání", True, 100, "meta"),
-    ("pokus", "Pokus", True, 110, "meta"),
+    ("pokus", "Pokus", False, 110, "meta"),
     ("celkem", "Celkem", False, 70, "result"),
     ("znamka", "Známka", False, 60, "result"),
     ("rank", "🏆", False, 36, "badge"),
@@ -302,10 +304,11 @@ class StudentTableModel(QAbstractTableModel):
             if key == "repetent":
                 return "REP" if repetent else ""
             if key == "istqb":
-                # Jen checkbox (CheckStateRole nad), žádný textový popisek navíc.
-                return ""
+                # Vizuální indikátor vedle checkboxu, ať je stav vidět
+                # i když je checkbox na světlém pozadí špatně vidět.
+                return "Ano" if student.ma_istqb_ctfl else "Ne"
             if key == "ukoncil":
-                return ""
+                return "Ano" if student.ukoncil_studium else "Ne"
             if key == "os_cislo":
                 return student.os_cislo
             if key == "jmeno":
@@ -470,7 +473,10 @@ class StudentTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.TextAlignmentRole:
             if key in ("test1", "test2", "projekt", "projekt_pct", "bonus_total", "celkem"):
                 return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            if key in ("znamka", "dochazka", "pokus", "repetent", "rank", "istqb"):
+            if key in (
+                "znamka", "dochazka", "pokus", "repetent", "rank",
+                "istqb", "ukoncil", "datum_odevzdani",
+            ):
                 return int(Qt.AlignmentFlag.AlignCenter)
 
         return None
@@ -519,6 +525,17 @@ class StudentTableModel(QAbstractTableModel):
                 student.test2 = max(0.0, min(MAX_TEST2, _r(float(value))))
             elif key == "projekt":
                 student.projekt = max(0.0, min(MAX_PROJEKT, _r(float(value))))
+            elif key == "bonus_total":
+                total = max(0.0, _r(float(value)))
+                # Uživatel zadává jen celkový bonus, systém ho automaticky
+                # rozdělí: nejdřív doplnit do brány T1/T2/Projekt, pak zbytek
+                # tak, aby maximalizoval známku (suggest_allocation).
+                student.bonus = suggest_allocation(
+                    test1=student.test1,
+                    test2=student.test2,
+                    projekt=student.projekt,
+                    total_bonus=total,
+                )
             elif key == "datum_odevzdani":
                 s = str(value).strip()
                 if not s:
