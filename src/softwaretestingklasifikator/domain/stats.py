@@ -9,6 +9,7 @@ from softwaretestingklasifikator.domain.grading import evaluate
 from softwaretestingklasifikator.domain.models import (
     POKUS_LABELS,
     POKUS_VALUES,
+    Student,
     YearData,
 )
 
@@ -22,6 +23,7 @@ class YearStats:
     dochazka_splneno: int = 0
     dochazka_nesplneno: int = 0
     repetenti: int = 0
+    istqb: int = 0
     celkem: int = 0
 
     @property
@@ -49,7 +51,36 @@ def compute_stats(year_data: YearData, repetent_os_cisla: set[str] | None = None
             stats.dochazka_nesplneno += 1
         if s.os_cislo and s.os_cislo in repetent_os_cisla:
             stats.repetenti += 1
+        if s.ma_istqb_ctfl:
+            stats.istqb += 1
     return stats
+
+
+def top_n_indices(students: list[Student], n: int = 5) -> dict[int, int]:
+    """Vrátí mapping `row_index -> pořadí (1..n)` pro N studentů s nejvyšším Celkem.
+
+    Připouští shodu — v takovém případě dostanou stejné pořadí. Cílem je vizuálně
+    ukázat „top N" studenty v tabulce. ISTQB CTFL studenti se počítají jako A,
+    ale jejich Celkem může být cokoliv — řadíme přesně podle vypočteného Celkem.
+    """
+    if not students:
+        return {}
+    scored: list[tuple[float, int]] = []
+    for i, s in enumerate(students):
+        result = evaluate(s)
+        scored.append((result.celkem, i))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    ranking: dict[int, int] = {}
+    rank = 0
+    last_score: float | None = None
+    for celkem, idx in scored:
+        if last_score is None or celkem != last_score:
+            rank += 1
+            last_score = celkem
+        if rank > n:
+            break
+        ranking[idx] = rank
+    return ranking
 
 
 def previous_years_os_cisla(data_dir, current_year: int) -> set[str]:
@@ -81,4 +112,5 @@ __all__ = [
     "YearStats",
     "compute_stats",
     "previous_years_os_cisla",
+    "top_n_indices",
 ]

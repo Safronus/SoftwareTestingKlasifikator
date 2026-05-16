@@ -23,7 +23,11 @@ from PySide6.QtWidgets import (
 from softwaretestingklasifikator import __version__
 from softwaretestingklasifikator.config import SUBJECT_CODE
 from softwaretestingklasifikator.domain.models import YearData
-from softwaretestingklasifikator.domain.stats import compute_stats, previous_years_os_cisla
+from softwaretestingklasifikator.domain.stats import (
+    compute_stats,
+    previous_years_os_cisla,
+    top_n_indices,
+)
 from softwaretestingklasifikator.io.csv_export import export_to_predmet_csv
 from softwaretestingklasifikator.io.csv_import import merge_students, read_roakce_csv
 from softwaretestingklasifikator.io.storage import (
@@ -110,11 +114,13 @@ class MainWindow(QMainWindow):
         self.table.setSortingEnabled(True)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table.verticalHeader().setDefaultSectionSize(24)
+        self.table.verticalHeader().setDefaultSectionSize(26)
         self.model = StudentTableModel(parent=self)
         self.table.setModel(self.model)
+        for i in range(self.model.columnCount()):
+            self.table.setColumnWidth(i, self.model.column_default_width(i))
         self.model.studentChanged.connect(self._schedule_autosave)
-        self.model.dataChanged.connect(lambda *_: self._refresh_stats())
+        self.model.studentChanged.connect(lambda *_: self._refresh_stats())
         self.setCentralWidget(self.table)
 
         # ComboBox delegate pro sloupec „Pokus"
@@ -182,7 +188,7 @@ class MainWindow(QMainWindow):
             self.model.set_repetent_os_cisla(set())
             self.model.set_students([])
             self.detail.set_student(None)
-            self.stats_panel.set_stats(compute_stats(YearData(year=0)))
+            self.stats_panel.set_stats(compute_stats(YearData(year=0)), deadlines=None)
             self.action_export.setEnabled(False)
             self.action_import.setEnabled(False)
             self.action_edit_year.setEnabled(False)
@@ -206,9 +212,10 @@ class MainWindow(QMainWindow):
     def _refresh_stats(self) -> None:
         if self._current_year_data is None:
             return
-        repetents = self.model._repetent_os_cisla  # already up-to-date
+        repetents = self.model.repetent_os_cisla()
         stats = compute_stats(self._current_year_data, repetents)
-        self.stats_panel.set_stats(stats)
+        self.stats_panel.set_stats(stats, deadlines=self._current_year_data.deadlines)
+        self.model.set_top_ranks(top_n_indices(self.model.students(), n=5))
 
     def _update_status_for_year(self) -> None:
         d = self._current_year_data

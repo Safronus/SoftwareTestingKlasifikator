@@ -25,29 +25,36 @@ from softwaretestingklasifikator.ui.theme import (
     DOCHAZKA_OK_BG,
     GRADE_BG,
     GRADE_FG,
+    ISTQB_BG,
+    ISTQB_FG,
     POKUS_BG,
     POKUS_FG,
+    REPETENT_FG,
     REPETENT_ROW_BG,
+    TOP_RANK_BG,
+    TOP_RANK_FG,
     projekt_percent_bg,
 )
 
-# (klíč, label, editable)
-COLUMNS: tuple[tuple[str, str, bool], ...] = (
-    ("repetent", "↻", False),
-    ("os_cislo", "Os. číslo", False),
-    ("prijmeni", "Příjmení", True),
-    ("jmeno", "Jméno", True),
-    ("test1", "Test 1", True),
-    ("test2", "Test 2", True),
-    ("projekt", "Projekt", True),
-    ("projekt_pct", "Projekt %", False),
-    ("bonus_total", "Bonus", False),
-    ("dochazka", "Docházka", True),
-    ("datum_odevzdani", "Odevzdání", True),
-    ("pokus", "Pokus", True),
-    ("celkem", "Celkem", False),
-    ("znamka", "Známka", False),
-    ("komentar", "Komentář", True),
+# (klíč, label, editable, min_width)
+COLUMNS: tuple[tuple[str, str, bool, int], ...] = (
+    ("rank", "🏆", False, 36),
+    ("repetent", "↻", False, 32),
+    ("istqb", "ISTQB", True, 56),
+    ("os_cislo", "Os. číslo", False, 80),
+    ("prijmeni", "Příjmení", True, 130),
+    ("jmeno", "Jméno", True, 110),
+    ("test1", "Test 1", True, 60),
+    ("test2", "Test 2", True, 60),
+    ("projekt", "Projekt", True, 70),
+    ("projekt_pct", "Projekt %", False, 70),
+    ("bonus_total", "Bonus", False, 60),
+    ("dochazka", "Docházka", True, 70),
+    ("datum_odevzdani", "Odevzdání", True, 100),
+    ("pokus", "Pokus", True, 110),
+    ("celkem", "Celkem", False, 70),
+    ("znamka", "Známka", False, 60),
+    ("komentar", "Komentář", True, 200),
 )
 
 
@@ -62,6 +69,7 @@ class StudentTableModel(QAbstractTableModel):
         super().__init__(parent)
         self._students: list[Student] = students or []
         self._repetent_os_cisla: set[str] = set()
+        self._top_ranks: dict[int, int] = {}
 
     # ---- public API ----
     def students(self) -> list[Student]:
@@ -70,6 +78,7 @@ class StudentTableModel(QAbstractTableModel):
     def set_students(self, students: list[Student]) -> None:
         self.beginResetModel()
         self._students = students
+        self._top_ranks = {}
         self.endResetModel()
 
     def student_at(self, row: int) -> Student | None:
@@ -82,8 +91,21 @@ class StudentTableModel(QAbstractTableModel):
         self._repetent_os_cisla = set(os_cisla)
         self.endResetModel()
 
+    def repetent_os_cisla(self) -> set[str]:
+        return set(self._repetent_os_cisla)
+
     def is_repetent(self, student: Student) -> bool:
         return bool(student.os_cislo) and student.os_cislo in self._repetent_os_cisla
+
+    def set_top_ranks(self, ranks: dict[int, int]) -> None:
+        self._top_ranks = dict(ranks)
+        if self._students:
+            top = self.index(0, 0)
+            bottom = self.index(self.rowCount() - 1, self.columnCount() - 1)
+            self.dataChanged.emit(top, bottom, [
+                Qt.ItemDataRole.DisplayRole,
+                Qt.ItemDataRole.BackgroundRole,
+            ])
 
     def emit_row_changed(self, row: int) -> None:
         if 0 <= row < len(self._students):
@@ -125,25 +147,35 @@ class StudentTableModel(QAbstractTableModel):
             return 0
         return len(COLUMNS)
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole):  # noqa: D401
-        if (
-            role == Qt.ItemDataRole.ToolTipRole
-            and orientation == Qt.Orientation.Horizontal
-            and COLUMNS[section][0] == "repetent"
-        ):
-            return "Student byl podle os. čísla evidován v některém předchozím roce."
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Vertical:
+            if role == Qt.ItemDataRole.DisplayRole:
+                return section + 1
+            return None
+        if not (0 <= section < len(COLUMNS)):
+            return None
+        key = COLUMNS[section][0]
+        if role == Qt.ItemDataRole.ToolTipRole:
+            tooltips = {
+                "rank": "Pořadí v top 5 podle Celkem.",
+                "repetent": "Student byl podle os. čísla evidován v některém předchozím roce.",
+                "istqb": "Student má certifikát ISTQB CTFL — automatická známka A.",
+            }
+            if key in tooltips:
+                return tooltips[key]
         if role != Qt.ItemDataRole.DisplayRole:
             return None
-        if orientation == Qt.Orientation.Horizontal:
-            return COLUMNS[section][1]
-        return section + 1
+        return COLUMNS[section][1]
+
+    def column_default_width(self, section: int) -> int:
+        return COLUMNS[section][3]
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlag:
         if not index.isValid():
             return Qt.ItemFlag.NoItemFlags
-        key, _, editable = COLUMNS[index.column()]
+        key, _, editable, _ = COLUMNS[index.column()]
         base = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
-        if key == "dochazka":
+        if key in ("dochazka", "istqb"):
             base |= Qt.ItemFlag.ItemIsUserCheckable
         elif editable:
             base |= Qt.ItemFlag.ItemIsEditable
@@ -153,17 +185,24 @@ class StudentTableModel(QAbstractTableModel):
         if not index.isValid():
             return None
         student = self._students[index.row()]
-        key, _, _ = COLUMNS[index.column()]
+        key, _, _, _ = COLUMNS[index.column()]
         result = evaluate(student)
         grade = student.znamka_override or result.znamka
         repetent = self.is_repetent(student)
+        rank = self._top_ranks.get(index.row())
 
         if key == "dochazka" and role == Qt.ItemDataRole.CheckStateRole:
             return Qt.CheckState.Checked if student.dochazka else Qt.CheckState.Unchecked
+        if key == "istqb" and role == Qt.ItemDataRole.CheckStateRole:
+            return Qt.CheckState.Checked if student.ma_istqb_ctfl else Qt.CheckState.Unchecked
 
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
+            if key == "rank":
+                return f"{rank}." if rank else ""
             if key == "repetent":
-                return "R" if repetent else ""
+                return "↻" if repetent else ""
+            if key == "istqb":
+                return "CTFL" if student.ma_istqb_ctfl else ""
             if key == "os_cislo":
                 return student.os_cislo
             if key == "jmeno":
@@ -196,6 +235,8 @@ class StudentTableModel(QAbstractTableModel):
                 return student.komentar
 
         if role == Qt.ItemDataRole.BackgroundRole:
+            if key == "rank" and rank:
+                return QBrush(TOP_RANK_BG.get(rank, TOP_RANK_BG[5]))
             if key == "znamka":
                 return QBrush(GRADE_BG.get(grade, GRADE_BG["F"]))
             if key == "dochazka":
@@ -204,20 +245,28 @@ class StudentTableModel(QAbstractTableModel):
                 return QBrush(POKUS_BG.get(student.pokus, POKUS_BG["radny"]))
             if key == "projekt_pct":
                 return QBrush(projekt_percent_bg(result.projekt_percent))
+            if key == "istqb":
+                return QBrush(ISTQB_BG if student.ma_istqb_ctfl else QBrush(Qt.GlobalColor.transparent))
             if key == "repetent" and repetent:
                 return QBrush(REPETENT_ROW_BG)
             if repetent:
                 return QBrush(REPETENT_ROW_BG)
 
         if role == Qt.ItemDataRole.ForegroundRole:
+            if key == "rank" and rank:
+                return QBrush(TOP_RANK_FG)
             if key == "znamka":
                 return QBrush(GRADE_FG.get(grade, GRADE_FG["F"]))
             if key == "dochazka":
                 return QBrush(Qt.GlobalColor.white)
             if key == "pokus":
                 return QBrush(POKUS_FG.get(student.pokus, POKUS_FG["radny"]))
+            if key == "istqb" and student.ma_istqb_ctfl:
+                return QBrush(ISTQB_FG)
+            if key == "repetent" and repetent:
+                return QBrush(REPETENT_FG)
 
-        if role == Qt.ItemDataRole.FontRole and key in ("znamka", "repetent"):
+        if role == Qt.ItemDataRole.FontRole and key in ("znamka", "rank", "repetent", "istqb"):
             font = QFont()
             font.setBold(True)
             return font
@@ -236,6 +285,8 @@ class StudentTableModel(QAbstractTableModel):
                 if not result.gate.dochazka_ok:
                     reasons.append("Docházka nesplněna")
                 return "F (brána): " + ", ".join(reasons)
+            if key == "znamka" and student.ma_istqb_ctfl:
+                return "Automatická A díky certifikátu ISTQB CTFL."
             if key == "celkem":
                 return (
                     f"Test 1: {result.test1_total:g} · "
@@ -243,14 +294,20 @@ class StudentTableModel(QAbstractTableModel):
                     f"Projekt: {result.projekt_total:g} ({result.projekt_percent*100:.1f} %)"
                 )
             if key == "repetent" and repetent:
-                return "Repetent — os. číslo se vyskytlo v některém předchozím roce."
+                return "Repetent — os. číslo bylo evidováno v některém předchozím roce."
+            if key == "rank" and rank:
+                return f"Pořadí v top 5: {rank}."
             if key == "pokus":
                 return POKUS_LABELS.get(student.pokus, student.pokus)
+            if key == "istqb":
+                return ("Certifikát ISTQB CTFL: ANO — známka automaticky A"
+                        if student.ma_istqb_ctfl
+                        else "Certifikát ISTQB CTFL: NE")
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
             if key in ("test1", "test2", "projekt", "projekt_pct", "bonus_total", "celkem"):
                 return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            if key in ("znamka", "dochazka", "pokus", "repetent"):
+            if key in ("znamka", "dochazka", "pokus", "repetent", "rank", "istqb"):
                 return int(Qt.AlignmentFlag.AlignCenter)
 
         return None
@@ -259,13 +316,21 @@ class StudentTableModel(QAbstractTableModel):
         if not index.isValid():
             return False
         student = self._students[index.row()]
-        key, _, editable = COLUMNS[index.column()]
+        key, _, editable, _ = COLUMNS[index.column()]
 
         if key == "dochazka" and role == Qt.ItemDataRole.CheckStateRole:
             checked = Qt.CheckState(value) == Qt.CheckState.Checked
             if student.dochazka == checked:
                 return False
             student.dochazka = checked
+            self.emit_row_changed(index.row())
+            return True
+
+        if key == "istqb" and role == Qt.ItemDataRole.CheckStateRole:
+            checked = Qt.CheckState(value) == Qt.CheckState.Checked
+            if student.ma_istqb_ctfl == checked:
+                return False
+            student.ma_istqb_ctfl = checked
             self.emit_row_changed(index.row())
             return True
 

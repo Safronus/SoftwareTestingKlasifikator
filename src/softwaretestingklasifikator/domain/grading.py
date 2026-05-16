@@ -85,6 +85,18 @@ def evaluate(student: Student) -> GradeResult:
     pj_pct = _r(pj / MAX_PROJEKT) if MAX_PROJEKT else 0.0
     celkem = _r(student.test1 + student.test2 + student.projekt + student.bonus.total())
 
+    # ISTQB CTFL → automatická A bez ohledu na body i bránu.
+    if student.ma_istqb_ctfl:
+        gate = GateStatus(
+            test1_ok=True, test2_ok=True, projekt_ok=True,
+            odevzdano_ok=True, dochazka_ok=True,
+        )
+        return GradeResult(
+            test1_total=t1, test2_total=t2, projekt_total=pj,
+            projekt_percent=pj_pct, celkem=celkem,
+            gate=gate, znamka="A",
+        )
+
     gate = GateStatus(
         test1_ok=t1 >= GATE_TEST1,
         test2_ok=t2 >= GATE_TEST2,

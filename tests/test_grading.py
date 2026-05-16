@@ -103,3 +103,20 @@ def test_pokus_radny_is_default_ok():
     r = evaluate(s)
     assert r.gate.odevzdano_ok
     assert r.znamka == "A"
+
+
+def test_istqb_certificate_forces_A_regardless_of_points():
+    s = make_student(test1=0, test2=0, projekt=0, dochazka=False,
+                     pokus=POKUS_NEODEVZDAL)
+    s.ma_istqb_ctfl = True
+    r = evaluate(s)
+    assert r.znamka == "A"
+    assert r.gate.all_ok  # se zástřičkou vše OK kvůli zobrazování
+
+
+def test_istqb_off_keeps_normal_logic():
+    s = make_student(test1=0, test2=0, projekt=0, dochazka=False,
+                     pokus=POKUS_NEODEVZDAL)
+    s.ma_istqb_ctfl = False
+    r = evaluate(s)
+    assert r.znamka == "F"

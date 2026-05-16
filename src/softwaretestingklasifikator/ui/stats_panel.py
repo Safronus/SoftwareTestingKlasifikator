@@ -20,6 +20,7 @@ from softwaretestingklasifikator.domain.models import (
     POKUS_OPRAVNY,
     POKUS_PO_TERMINU,
     POKUS_RADNY,
+    YearDeadlines,
 )
 from softwaretestingklasifikator.domain.stats import GRADE_ORDER, YearStats
 from softwaretestingklasifikator.ui.theme import (
@@ -27,6 +28,8 @@ from softwaretestingklasifikator.ui.theme import (
     DOCHAZKA_OK_BG,
     GRADE_BG,
     GRADE_FG,
+    ISTQB_BG,
+    ISTQB_FG,
     POKUS_BG,
     POKUS_FG,
     REPETENT_ROW_BG,
@@ -76,13 +79,30 @@ class StatsPanel(QWidget):
         self.set_stats(YearStats())
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
 
-    def set_stats(self, stats: YearStats) -> None:
+    def set_stats(self, stats: YearStats, deadlines: YearDeadlines | None = None) -> None:
         # Vyčistit
         while self._layout.count():
             item = self._layout.takeAt(0)
             w = item.widget()
             if w is not None:
                 w.deleteLater()
+
+        # Deadliny (nahoře, ať jsou hned vidět)
+        if deadlines is not None and (deadlines.first or deadlines.second):
+            self._layout.addWidget(_make_section_title("Termíny odevzdání"))
+            dl_grid = QGridLayout()
+            dl_grid.setSpacing(0)
+            dl_grid.addWidget(_make_cell(
+                "1. termín", QColor(146, 208, 80), QColor(20, 60, 20), bold=True), 0, 0)
+            dl_grid.addWidget(_make_cell(
+                deadlines.first.isoformat() if deadlines.first else "—",
+                QColor(245, 245, 245), QColor(40, 40, 40), bold=False), 0, 1)
+            dl_grid.addWidget(_make_cell(
+                "Opravný", QColor(246, 178, 107), QColor(90, 50, 10), bold=True), 1, 0)
+            dl_grid.addWidget(_make_cell(
+                deadlines.second.isoformat() if deadlines.second else "—",
+                QColor(245, 245, 245), QColor(40, 40, 40), bold=False), 1, 1)
+            self._layout.addLayout(dl_grid)
 
         # Známky
         self._layout.addWidget(_make_section_title("Počet známek"))
@@ -141,15 +161,15 @@ class StatsPanel(QWidget):
         ))
         self._layout.addLayout(doch_row)
 
-        # Repetenti
-        rep_row = QHBoxLayout()
-        rep_label = _make_cell("Repetenti", REPETENT_ROW_BG, QColor(80, 40, 0), bold=True, min_width=100)
-        rep_count = _make_cell(str(stats.repetenti), _COUNT_BG, _COUNT_FG, bold=True, min_width=50)
-        rep_row.addWidget(rep_label)
-        rep_row.addWidget(rep_count)
-        rep_row.addStretch(1)
-        self._layout.addSpacing(8)
-        self._layout.addLayout(rep_row)
+        # ISTQB CTFL + Repetenti
+        self._layout.addSpacing(4)
+        extra = QGridLayout()
+        extra.setSpacing(0)
+        extra.addWidget(_make_cell("ISTQB CTFL", ISTQB_BG, ISTQB_FG, bold=True, min_width=110), 0, 0)
+        extra.addWidget(_make_cell(str(stats.istqb), _COUNT_BG, _COUNT_FG, bold=True, min_width=50), 0, 1)
+        extra.addWidget(_make_cell("Repetenti", REPETENT_ROW_BG, QColor(80, 40, 0), bold=True, min_width=110), 1, 0)
+        extra.addWidget(_make_cell(str(stats.repetenti), _COUNT_BG, _COUNT_FG, bold=True, min_width=50), 1, 1)
+        self._layout.addLayout(extra)
 
         # spacer
         spacer = QFrame()

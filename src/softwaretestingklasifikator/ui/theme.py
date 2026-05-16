@@ -52,6 +52,21 @@ DOCHAZKA_FAIL_BG = QColor(204, 70, 70)
 
 # Pozadí pro řádek repetenta (mírná tónace, čitelný i přes ostatní barvy).
 REPETENT_ROW_BG = QColor(255, 220, 180)  # světle lososová
+REPETENT_FG = QColor(150, 70, 0)
+
+# Zlato pro Top-5 sloupec.
+TOP_RANK_BG = {
+    1: QColor(255, 195, 0),   # zlatá
+    2: QColor(192, 192, 192), # stříbrná
+    3: QColor(205, 127, 50),  # bronzová
+    4: QColor(255, 224, 130),
+    5: QColor(255, 224, 130),
+}
+TOP_RANK_FG = QColor(40, 40, 40)
+
+# ISTQB CTFL — krémová podobně jako v Excelu.
+ISTQB_BG = QColor(255, 245, 200)
+ISTQB_FG = QColor(110, 80, 0)
 
 
 def projekt_percent_bg(percent: float) -> QColor:
