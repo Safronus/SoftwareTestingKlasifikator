@@ -1,0 +1,27 @@
+# Student / personal data — NEVER commit
+/data/
+*.csv
+*.xlsx
+*.xls
+*.xlsm
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+
+# venv (symlinked to ~/.venvs/...)
+.venv
+venv/
+
+# macOS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
