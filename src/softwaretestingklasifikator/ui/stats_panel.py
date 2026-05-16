@@ -23,6 +23,7 @@ from softwaretestingklasifikator.domain.models import (
     YearDeadlines,
 )
 from softwaretestingklasifikator.domain.stats import GRADE_ORDER, YearStats
+from softwaretestingklasifikator.ui.grade_chart import GradeChart
 from softwaretestingklasifikator.ui.theme import (
     DOCHAZKA_FAIL_BG,
     DOCHAZKA_OK_BG,
@@ -115,7 +116,7 @@ class StatsPanel(QWidget):
                 QColor(245, 245, 245), QColor(40, 40, 40), bold=False), 1, 1)
             layout.addLayout(dl_grid)
 
-        # Známky
+        # Známky — tabulka + sloupcový graf
         layout.addWidget(_make_section_title("Počet známek"))
         grade_grid = QGridLayout()
         grade_grid.setSpacing(0)
@@ -128,6 +129,10 @@ class StatsPanel(QWidget):
                 row, 1,
             )
         layout.addLayout(grade_grid)
+
+        chart = GradeChart()
+        chart.set_counts(stats.grades)
+        layout.addWidget(chart)
 
         # Splnilo / Nesplnilo / Celkem
         layout.addWidget(_make_section_title("Splnilo / Nesplnilo"))

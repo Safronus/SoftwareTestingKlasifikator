@@ -148,17 +148,14 @@ class MainWindow(QMainWindow):
         self.table.setAlternatingRowColors(True)
         self.table.setSortingEnabled(True)
         header = self.table.horizontalHeader()
-        # stretchLastSection musí být OFF kvůli per-column ResizeMode.
-        header.setStretchLastSection(False)
+        # Interactive (uživatel si může roztáhnout) + last section (Komentář)
+        # vyplní zbytek. Důležité kvůli scroll-performance: ResizeToContents
+        # by si při každém scrollu přepočítával šířky všech sloupců.
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
         self.table.verticalHeader().setDefaultSectionSize(26)
         self.model = StudentTableModel(parent=self)
         self.table.setModel(self.model)
-        # Sloupce se přizpůsobí obsahu, poslední (Komentář) zabere zbytek.
-        for i, col in enumerate(COLUMNS):
-            if col[0] == "komentar":
-                header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
-            else:
-                header.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
         self.model.studentChanged.connect(self._schedule_autosave)
         self.model.studentChanged.connect(lambda *_: self._refresh_stats())
         self.model.studentChanged.connect(lambda *_: self._apply_row_visibility())
@@ -250,6 +247,9 @@ class MainWindow(QMainWindow):
         self.table.sortByColumn(prijmeni_col, Qt.SortOrder.AscendingOrder)
         self._refresh_stats()
         self._apply_row_visibility()
+        # One-shot fit-to-content po načtení ročníku. Pak už šířky zůstanou
+        # zafixované (Interactive) — žádné přepočítávání při scrollu.
+        self.table.resizeColumnsToContents()
         self._update_status_for_year()
 
     def _refresh_stats(self) -> None:
