@@ -7,6 +7,43 @@ from datetime import date
 
 from softwaretestingklasifikator.config import POINTS_DECIMALS
 
+# Stavy odevzdání projektu — drží se v Student.pokus.
+POKUS_RADNY = "radny"
+POKUS_OPRAVNY = "opravny"
+POKUS_PO_TERMINU = "po_terminu"
+POKUS_NEODEVZDAL = "neodevzdal"
+POKUS_VALUES: tuple[str, ...] = (
+    POKUS_RADNY,
+    POKUS_OPRAVNY,
+    POKUS_PO_TERMINU,
+    POKUS_NEODEVZDAL,
+)
+POKUS_LABELS: dict[str, str] = {
+    POKUS_RADNY: "1. pokus",
+    POKUS_OPRAVNY: "Oprava",
+    POKUS_PO_TERMINU: "Po termínu",
+    POKUS_NEODEVZDAL: "Neodevzdal",
+}
+
+
+def _normalize_pokus(value) -> str:
+    """Akceptuje int/str/None, vrací jeden ze stringů POKUS_VALUES."""
+    if value is None or value == "":
+        return POKUS_RADNY
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in POKUS_VALUES:
+            return v
+        # Tolerance pro stará data (1/2) přijatá jako string.
+        if v in ("1", "1."):
+            return POKUS_RADNY
+        if v in ("2", "2."):
+            return POKUS_OPRAVNY
+        return POKUS_RADNY
+    if isinstance(value, int):
+        return POKUS_OPRAVNY if value >= 2 else POKUS_RADNY
+    return POKUS_RADNY
+
 
 def _round_points(value: float) -> float:
     return round(float(value), POINTS_DECIMALS)
@@ -47,7 +84,7 @@ class Student:
 
     dochazka: bool = False
     datum_odevzdani: date | None = None
-    pokus: int = 1  # 1 = řádný, 2 = opravný
+    pokus: str = POKUS_RADNY  # viz POKUS_VALUES
     komentar: str = ""
 
     # Volitelná uložená známka (např. při importu historických dat).
@@ -87,7 +124,7 @@ class Student:
             ),
             dochazka=bool(data.get("dochazka", False)),
             datum_odevzdani=date.fromisoformat(datum_str) if datum_str else None,
-            pokus=int(data.get("pokus", 1) or 1),
+            pokus=_normalize_pokus(data.get("pokus", POKUS_RADNY)),
             komentar=str(data.get("komentar", "") or ""),
             znamka_override=(data.get("znamka_override") or None),
         )

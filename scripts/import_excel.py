@@ -42,9 +42,14 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from softwaretestingklasifikator.domain.grading import evaluate  # noqa: E402
 from softwaretestingklasifikator.domain.models import (  # noqa: E402
+    POKUS_NEODEVZDAL,
+    POKUS_OPRAVNY,
+    POKUS_PO_TERMINU,
+    POKUS_RADNY,
     BonusBreakdown,
     Student,
     YearData,
+    YearDeadlines,
 )
 from softwaretestingklasifikator.io.storage import save_year  # noqa: E402
 
@@ -66,15 +71,20 @@ def _to_date(value) -> date | None:
     return None
 
 
-def _to_pokus(value) -> int:
+def _to_pokus(value) -> str:
+    """Map text v Excelu na string stav. Default: řádný."""
     if value is None:
-        return 1
-    s = str(value).strip().rstrip(".")
-    try:
-        n = int(s)
-    except ValueError:
-        return 1
-    return 2 if n >= 2 else 1
+        return POKUS_RADNY
+    s = str(value).strip().lower().rstrip(".")
+    if s in ("", "1"):
+        return POKUS_RADNY
+    if s in ("2", "oprava", "opravny", "opravný", "opravna"):
+        return POKUS_OPRAVNY
+    if s in ("po terminu", "po termínu", "po termínu.", "po termině"):
+        return POKUS_PO_TERMINU
+    if s in ("neodevzdal", "neodevzdano", "neodevzdáno", "neodevzdal."):
+        return POKUS_NEODEVZDAL
+    return POKUS_RADNY
 
 
 # Klíče vyhledávání hlaviček (case-insensitive, prefix match).
@@ -121,6 +131,20 @@ def _detect_columns(ws) -> dict[str, int | None]:
             break
     found["os_cislo"] = os_col
     return found
+
+
+def _extract_deadlines(ws) -> YearDeadlines:
+    """Najde buňku „Deadliny" a vrátí dvě následující data (1. a 2. termín)."""
+    for r in range(1, 30):
+        for c in range(1, 30):
+            v = ws.cell(r, c).value
+            if isinstance(v, str) and "deadlin" in v.lower():
+                first_val = ws.cell(r + 1, c).value
+                second_val = ws.cell(r + 2, c).value
+                first = _to_date(first_val)
+                second = _to_date(second_val)
+                return YearDeadlines(first=first, second=second)
+    return YearDeadlines()
 
 
 def import_sheet(ws, year: int, verbose: bool = False) -> YearData:
@@ -190,7 +214,10 @@ def import_sheet(ws, year: int, verbose: bool = False) -> YearData:
     if verbose:
         print(f"  {len(students)} studentů, {skipped} přeskočeno, {mismatches} grade overrides")
 
-    return YearData(year=year, students=students)
+    deadlines = _extract_deadlines(ws)
+    if verbose:
+        print(f"  Deadliny: 1.={deadlines.first}, 2.={deadlines.second}")
+    return YearData(year=year, deadlines=deadlines, students=students)
 
 
 def main(argv: list[str] | None = None) -> int:

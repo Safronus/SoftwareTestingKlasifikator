@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
+from PySide6.QtGui import QBrush, QFont
 
 from softwaretestingklasifikator.config import (
     MAX_PROJEKT,
@@ -13,10 +14,26 @@ from softwaretestingklasifikator.config import (
     POINTS_DECIMALS,
 )
 from softwaretestingklasifikator.domain.grading import evaluate
-from softwaretestingklasifikator.domain.models import Student
+from softwaretestingklasifikator.domain.models import (
+    POKUS_LABELS,
+    POKUS_VALUES,
+    Student,
+    _normalize_pokus,
+)
+from softwaretestingklasifikator.ui.theme import (
+    DOCHAZKA_FAIL_BG,
+    DOCHAZKA_OK_BG,
+    GRADE_BG,
+    GRADE_FG,
+    POKUS_BG,
+    POKUS_FG,
+    REPETENT_ROW_BG,
+    projekt_percent_bg,
+)
 
 # (klíč, label, editable)
 COLUMNS: tuple[tuple[str, str, bool], ...] = (
+    ("repetent", "↻", False),
     ("os_cislo", "Os. číslo", False),
     ("prijmeni", "Příjmení", True),
     ("jmeno", "Jméno", True),
@@ -44,6 +61,7 @@ class StudentTableModel(QAbstractTableModel):
     def __init__(self, students: list[Student] | None = None, parent=None) -> None:
         super().__init__(parent)
         self._students: list[Student] = students or []
+        self._repetent_os_cisla: set[str] = set()
 
     # ---- public API ----
     def students(self) -> list[Student]:
@@ -59,11 +77,27 @@ class StudentTableModel(QAbstractTableModel):
             return self._students[row]
         return None
 
+    def set_repetent_os_cisla(self, os_cisla: set[str]) -> None:
+        self.beginResetModel()
+        self._repetent_os_cisla = set(os_cisla)
+        self.endResetModel()
+
+    def is_repetent(self, student: Student) -> bool:
+        return bool(student.os_cislo) and student.os_cislo in self._repetent_os_cisla
+
     def emit_row_changed(self, row: int) -> None:
         if 0 <= row < len(self._students):
             top = self.index(row, 0)
             bottom = self.index(row, self.columnCount() - 1)
-            self.dataChanged.emit(top, bottom, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
+            self.dataChanged.emit(
+                top, bottom,
+                [
+                    Qt.ItemDataRole.DisplayRole,
+                    Qt.ItemDataRole.EditRole,
+                    Qt.ItemDataRole.BackgroundRole,
+                    Qt.ItemDataRole.ForegroundRole,
+                ],
+            )
             self.studentChanged.emit(row)
 
     def add_student(self, student: Student) -> None:
@@ -92,6 +126,12 @@ class StudentTableModel(QAbstractTableModel):
         return len(COLUMNS)
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole):  # noqa: D401
+        if (
+            role == Qt.ItemDataRole.ToolTipRole
+            and orientation == Qt.Orientation.Horizontal
+            and COLUMNS[section][0] == "repetent"
+        ):
+            return "Student byl podle os. čísla evidován v některém předchozím roce."
         if role != Qt.ItemDataRole.DisplayRole:
             return None
         if orientation == Qt.Orientation.Horizontal:
@@ -115,11 +155,15 @@ class StudentTableModel(QAbstractTableModel):
         student = self._students[index.row()]
         key, _, _ = COLUMNS[index.column()]
         result = evaluate(student)
+        grade = student.znamka_override or result.znamka
+        repetent = self.is_repetent(student)
 
         if key == "dochazka" and role == Qt.ItemDataRole.CheckStateRole:
             return Qt.CheckState.Checked if student.dochazka else Qt.CheckState.Unchecked
 
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
+            if key == "repetent":
+                return "R" if repetent else ""
             if key == "os_cislo":
                 return student.os_cislo
             if key == "jmeno":
@@ -137,18 +181,46 @@ class StudentTableModel(QAbstractTableModel):
             if key == "bonus_total":
                 return _r(student.bonus.total())
             if key == "dochazka":
-                # CheckStateRole je výše; tady jen prázdný display.
                 return ""
             if key == "datum_odevzdani":
                 return student.datum_odevzdani.isoformat() if student.datum_odevzdani else ""
             if key == "pokus":
-                return student.pokus
+                if role == Qt.ItemDataRole.EditRole:
+                    return student.pokus
+                return POKUS_LABELS.get(student.pokus, student.pokus)
             if key == "celkem":
                 return _r(result.celkem)
             if key == "znamka":
-                return student.znamka_override or result.znamka
+                return grade
             if key == "komentar":
                 return student.komentar
+
+        if role == Qt.ItemDataRole.BackgroundRole:
+            if key == "znamka":
+                return QBrush(GRADE_BG.get(grade, GRADE_BG["F"]))
+            if key == "dochazka":
+                return QBrush(DOCHAZKA_OK_BG if student.dochazka else DOCHAZKA_FAIL_BG)
+            if key == "pokus":
+                return QBrush(POKUS_BG.get(student.pokus, POKUS_BG["radny"]))
+            if key == "projekt_pct":
+                return QBrush(projekt_percent_bg(result.projekt_percent))
+            if key == "repetent" and repetent:
+                return QBrush(REPETENT_ROW_BG)
+            if repetent:
+                return QBrush(REPETENT_ROW_BG)
+
+        if role == Qt.ItemDataRole.ForegroundRole:
+            if key == "znamka":
+                return QBrush(GRADE_FG.get(grade, GRADE_FG["F"]))
+            if key == "dochazka":
+                return QBrush(Qt.GlobalColor.white)
+            if key == "pokus":
+                return QBrush(POKUS_FG.get(student.pokus, POKUS_FG["radny"]))
+
+        if role == Qt.ItemDataRole.FontRole and key in ("znamka", "repetent"):
+            font = QFont()
+            font.setBold(True)
+            return font
 
         if role == Qt.ItemDataRole.ToolTipRole:
             if key == "znamka" and not result.gate.all_ok:
@@ -159,6 +231,8 @@ class StudentTableModel(QAbstractTableModel):
                     reasons.append("Test 2 < 15")
                 if not result.gate.projekt_ok:
                     reasons.append("Projekt < 90")
+                if not result.gate.odevzdano_ok:
+                    reasons.append("Neodevzdal")
                 if not result.gate.dochazka_ok:
                     reasons.append("Docházka nesplněna")
                 return "F (brána): " + ", ".join(reasons)
@@ -166,13 +240,17 @@ class StudentTableModel(QAbstractTableModel):
                 return (
                     f"Test 1: {result.test1_total:g} · "
                     f"Test 2: {result.test2_total:g} · "
-                    f"Projekt: {result.projekt_total:g}"
+                    f"Projekt: {result.projekt_total:g} ({result.projekt_percent*100:.1f} %)"
                 )
+            if key == "repetent" and repetent:
+                return "Repetent — os. číslo se vyskytlo v některém předchozím roce."
+            if key == "pokus":
+                return POKUS_LABELS.get(student.pokus, student.pokus)
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
-            if key in ("test1", "test2", "projekt", "projekt_pct", "bonus_total", "celkem", "pokus"):
+            if key in ("test1", "test2", "projekt", "projekt_pct", "bonus_total", "celkem"):
                 return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            if key in ("znamka", "dochazka"):
+            if key in ("znamka", "dochazka", "pokus", "repetent"):
                 return int(Qt.AlignmentFlag.AlignCenter)
 
         return None
@@ -212,8 +290,11 @@ class StudentTableModel(QAbstractTableModel):
                 else:
                     student.datum_odevzdani = date.fromisoformat(s)
             elif key == "pokus":
-                p = int(value)
-                student.pokus = 2 if p >= 2 else 1
+                v = str(value).strip()
+                if v in POKUS_VALUES:
+                    student.pokus = v
+                else:
+                    student.pokus = _normalize_pokus(value)
             elif key == "komentar":
                 student.komentar = str(value)
             else:

@@ -5,14 +5,21 @@ from __future__ import annotations
 import pytest
 
 from softwaretestingklasifikator.domain.grading import evaluate, grade_from_celkem
-from softwaretestingklasifikator.domain.models import BonusBreakdown, Student
+from softwaretestingklasifikator.domain.models import (
+    POKUS_NEODEVZDAL,
+    POKUS_RADNY,
+    BonusBreakdown,
+    Student,
+)
 
 
-def make_student(test1=0.0, test2=0.0, projekt=0.0, dochazka=True, bonus=None) -> Student:
+def make_student(test1=0.0, test2=0.0, projekt=0.0, dochazka=True,
+                 bonus=None, pokus=POKUS_RADNY) -> Student:
     return Student(
         os_cislo="X0001", jmeno="Test", prijmeni="Student",
         test1=test1, test2=test2, projekt=projekt,
         dochazka=dochazka, bonus=bonus or BonusBreakdown(),
+        pokus=pokus,
     )
 
 
@@ -80,3 +87,19 @@ def test_excel_row_example_arabadzhiyan():
     assert r.znamka == "F"
     assert not r.gate.projekt_ok
     assert not r.gate.test2_ok  # 10.23 < 15
+
+
+def test_neodevzdal_forces_F():
+    s = make_student(test1=25, test2=25, projekt=150, dochazka=True,
+                     pokus=POKUS_NEODEVZDAL)
+    r = evaluate(s)
+    assert not r.gate.odevzdano_ok
+    assert r.znamka == "F"
+
+
+def test_pokus_radny_is_default_ok():
+    s = make_student(test1=25, test2=25, projekt=150, dochazka=True,
+                     pokus=POKUS_RADNY)
+    r = evaluate(s)
+    assert r.gate.odevzdano_ok
+    assert r.znamka == "A"

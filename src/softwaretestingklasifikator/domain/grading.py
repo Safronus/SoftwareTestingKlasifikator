@@ -12,7 +12,7 @@ from softwaretestingklasifikator.config import (
     MAX_PROJEKT,
     POINTS_DECIMALS,
 )
-from softwaretestingklasifikator.domain.models import Student
+from softwaretestingklasifikator.domain.models import POKUS_NEODEVZDAL, Student
 
 
 def _r(value: float) -> float:
@@ -24,11 +24,18 @@ class GateStatus:
     test1_ok: bool
     test2_ok: bool
     projekt_ok: bool
+    odevzdano_ok: bool
     dochazka_ok: bool
 
     @property
     def all_ok(self) -> bool:
-        return self.test1_ok and self.test2_ok and self.projekt_ok and self.dochazka_ok
+        return (
+            self.test1_ok
+            and self.test2_ok
+            and self.projekt_ok
+            and self.odevzdano_ok
+            and self.dochazka_ok
+        )
 
 
 @dataclass(frozen=True)
@@ -52,6 +59,7 @@ class GradeResult:
                 "test1_ok": self.gate.test1_ok,
                 "test2_ok": self.gate.test2_ok,
                 "projekt_ok": self.gate.projekt_ok,
+                "odevzdano_ok": self.gate.odevzdano_ok,
                 "dochazka_ok": self.gate.dochazka_ok,
             },
             "znamka": self.znamka,
@@ -81,6 +89,7 @@ def evaluate(student: Student) -> GradeResult:
         test1_ok=t1 >= GATE_TEST1,
         test2_ok=t2 >= GATE_TEST2,
         projekt_ok=pj >= GATE_PROJEKT,
+        odevzdano_ok=student.pokus != POKUS_NEODEVZDAL,
         dochazka_ok=student.dochazka,
     )
 

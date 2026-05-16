@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
@@ -11,7 +12,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSizePolicy,
-    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -28,7 +28,12 @@ from softwaretestingklasifikator.config import (
 )
 from softwaretestingklasifikator.domain.bonus import suggest_allocation
 from softwaretestingklasifikator.domain.grading import evaluate
-from softwaretestingklasifikator.domain.models import BonusBreakdown, Student
+from softwaretestingklasifikator.domain.models import (
+    POKUS_LABELS,
+    POKUS_VALUES,
+    BonusBreakdown,
+    Student,
+)
 
 
 class StudentDetailPanel(QWidget):
@@ -102,15 +107,16 @@ class StudentDetailPanel(QWidget):
         from PySide6.QtCore import QDate
 
         self.date_odevzdani.setMinimumDate(QDate(2000, 1, 1))
-        self.spin_pokus = QSpinBox()
-        self.spin_pokus.setRange(1, 2)
+        self.combo_pokus = QComboBox()
+        for v in POKUS_VALUES:
+            self.combo_pokus.addItem(POKUS_LABELS[v], v)
         self.txt_komentar = QTextEdit()
         self.txt_komentar.setPlaceholderText("Volitelná poznámka")
         self.txt_komentar.setFixedHeight(70)
 
         mf.addRow("Docházka", self.chk_dochazka)
         mf.addRow("Datum odevzdání", self.date_odevzdani)
-        mf.addRow("Pokus (1=řádný, 2=opravný)", self.spin_pokus)
+        mf.addRow("Stav odevzdání", self.combo_pokus)
         mf.addRow("Komentář", self.txt_komentar)
         layout.addWidget(meta_box)
 
@@ -132,7 +138,7 @@ class StudentDetailPanel(QWidget):
         self.spin_bonus_pj.valueChanged.connect(self._on_value_change)
         self.chk_dochazka.toggled.connect(self._on_value_change)
         self.date_odevzdani.dateChanged.connect(self._on_value_change)
-        self.spin_pokus.valueChanged.connect(self._on_value_change)
+        self.combo_pokus.currentIndexChanged.connect(self._on_value_change)
         self.txt_komentar.textChanged.connect(self._on_value_change)
         self.btn_suggest.clicked.connect(self._apply_suggest)
 
@@ -161,11 +167,11 @@ class StudentDetailPanel(QWidget):
                 self.id_label.setText("")
                 for w in (self.spin_test1, self.spin_test2, self.spin_projekt,
                           self.spin_bonus_t1, self.spin_bonus_t2, self.spin_bonus_pj,
-                          self.spin_total_bonus, self.spin_pokus):
+                          self.spin_total_bonus):
                     w.setEnabled(False)
                     w.setValue(0)
                 for w in (self.chk_dochazka, self.date_odevzdani,
-                          self.txt_komentar, self.btn_suggest):
+                          self.combo_pokus, self.txt_komentar, self.btn_suggest):
                     w.setEnabled(False)
                 self.chk_dochazka.setChecked(False)
                 self.txt_komentar.clear()
@@ -174,9 +180,9 @@ class StudentDetailPanel(QWidget):
 
             for w in (self.spin_test1, self.spin_test2, self.spin_projekt,
                       self.spin_bonus_t1, self.spin_bonus_t2, self.spin_bonus_pj,
-                      self.spin_total_bonus, self.spin_pokus,
-                      self.chk_dochazka, self.date_odevzdani, self.txt_komentar,
-                      self.btn_suggest):
+                      self.spin_total_bonus,
+                      self.chk_dochazka, self.date_odevzdani, self.combo_pokus,
+                      self.txt_komentar, self.btn_suggest):
                 w.setEnabled(True)
 
             self.title_label.setText(student.display_name() or f"({student.os_cislo})")
@@ -199,7 +205,8 @@ class StudentDetailPanel(QWidget):
             else:
                 self.date_odevzdani.setDate(self.date_odevzdani.minimumDate())
 
-            self.spin_pokus.setValue(student.pokus or 1)
+            pokus_idx = self.combo_pokus.findData(student.pokus)
+            self.combo_pokus.setCurrentIndex(pokus_idx if pokus_idx >= 0 else 0)
             self.txt_komentar.setPlainText(student.komentar)
         finally:
             self._suspend_signals = False
@@ -226,7 +233,7 @@ class StudentDetailPanel(QWidget):
             from datetime import date as _date
 
             s.datum_odevzdani = _date(d.year(), d.month(), d.day())
-        s.pokus = self.spin_pokus.value()
+        s.pokus = self.combo_pokus.currentData() or "radny"
         s.komentar = self.txt_komentar.toPlainText()
 
         # Synchronizace pole "Celkový bonus" — odráží součet.
@@ -273,5 +280,14 @@ class StudentDetailPanel(QWidget):
             rows.append(f"<b>{name}:</b> {total:g} / brána {gate:g}{suffix} {badge}")
         doch_badge = "✓" if result.gate.dochazka_ok else "✗"
         rows.append(f"<b>Docházka:</b> {'splněno' if self._student.dochazka else 'nesplněno'} {doch_badge}")
-        rows.append(f"<b>Celkem:</b> {result.celkem:g}    <b>Známka:</b> <span style='font-size:14pt'>{result.znamka}</span>")
+        odev_badge = "✓" if result.gate.odevzdano_ok else "✗"
+        rows.append(f"<b>Stav odevzdání:</b> {POKUS_LABELS.get(self._student.pokus, self._student.pokus)} {odev_badge}")
+        grade_color = {
+            "A": "#3D8B40", "B": "#5E9933", "C": "#A38A00",
+            "D": "#A66726", "E": "#A1422C", "F": "#A0282A",
+        }.get(result.znamka, "#666")
+        rows.append(
+            f"<b>Celkem:</b> {result.celkem:g}    "
+            f"<b>Známka:</b> <span style='font-size:14pt; font-weight:bold; color:{grade_color};'>{result.znamka}</span>"
+        )
         self.summary_label.setText("<br>".join(rows))

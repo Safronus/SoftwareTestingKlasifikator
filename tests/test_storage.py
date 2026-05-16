@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import date
 
 from softwaretestingklasifikator.domain.models import (
+    POKUS_OPRAVNY,
+    POKUS_RADNY,
     BonusBreakdown,
     Student,
     YearData,
@@ -26,7 +28,7 @@ def test_save_and_load_roundtrip(tmp_path):
             bonus=BonusBreakdown(test1=1, test2=2, projekt=3),
             dochazka=True,
             datum_odevzdani=date(2026, 5, 10),
-            pokus=1,
+            pokus=POKUS_RADNY,
             komentar="OK",
         ),
         Student(os_cislo="A00002", jmeno="Bob", prijmeni="Beta"),
@@ -52,6 +54,21 @@ def test_save_and_load_roundtrip(tmp_path):
     assert a.bonus.projekt == 3
     assert a.datum_odevzdani == date(2026, 5, 10)
     assert a.komentar == "OK"
+    assert a.pokus == POKUS_RADNY
+
+
+def test_pokus_int_migration_legacy_json(tmp_path):
+    import json
+    target = tmp_path / "2025.json"
+    target.write_text(json.dumps({
+        "year": 2025,
+        "deadlines": {"first": None, "second": None},
+        "students": [
+            {"os_cislo": "A1", "jmeno": "Old", "prijmeni": "Schema", "pokus": 2},
+        ],
+    }), encoding="utf-8")
+    loaded = load_year(tmp_path, 2025)
+    assert loaded.students[0].pokus == POKUS_OPRAVNY
 
 
 def test_load_missing_returns_empty_year(tmp_path):

@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from softwaretestingklasifikator import __version__
 from softwaretestingklasifikator.config import SUBJECT_CODE
 from softwaretestingklasifikator.domain.models import YearData
+from softwaretestingklasifikator.domain.stats import compute_stats, previous_years_os_cisla
 from softwaretestingklasifikator.io.csv_export import export_to_predmet_csv
 from softwaretestingklasifikator.io.csv_import import merge_students, read_roakce_csv
 from softwaretestingklasifikator.io.storage import (
@@ -31,8 +32,10 @@ from softwaretestingklasifikator.io.storage import (
     load_year,
     save_year,
 )
+from softwaretestingklasifikator.ui.delegates import PokusDelegate
+from softwaretestingklasifikator.ui.stats_panel import StatsPanel
 from softwaretestingklasifikator.ui.student_detail import StudentDetailPanel
-from softwaretestingklasifikator.ui.student_table_model import StudentTableModel
+from softwaretestingklasifikator.ui.student_table_model import COLUMNS, StudentTableModel
 from softwaretestingklasifikator.ui.year_config_dialog import YearConfigDialog
 
 
@@ -111,16 +114,30 @@ class MainWindow(QMainWindow):
         self.model = StudentTableModel(parent=self)
         self.table.setModel(self.model)
         self.model.studentChanged.connect(self._schedule_autosave)
+        self.model.dataChanged.connect(lambda *_: self._refresh_stats())
         self.setCentralWidget(self.table)
+
+        # ComboBox delegate pro sloupec „Pokus"
+        pokus_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "pokus"), None)
+        if pokus_col is not None:
+            self.table.setItemDelegateForColumn(pokus_col, PokusDelegate(self.table))
 
         # --- Right dock: detail -------------------------------------
         self.detail = StudentDetailPanel()
         self.detail.studentEdited.connect(self._on_detail_edited)
-        dock = QDockWidget("Detail studenta", self)
-        dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
-        dock.setWidget(self.detail)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-        dock.setMinimumWidth(360)
+        detail_dock = QDockWidget("Detail studenta", self)
+        detail_dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
+        detail_dock.setWidget(self.detail)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, detail_dock)
+        detail_dock.setMinimumWidth(360)
+
+        # --- Left dock: statistika ---------------------------------
+        self.stats_panel = StatsPanel()
+        stats_dock = QDockWidget("Statistika ročníku", self)
+        stats_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
+        stats_dock.setWidget(self.stats_panel)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, stats_dock)
+        stats_dock.setMinimumWidth(280)
 
         self.table.selectionModel().selectionChanged.connect(self._on_selection_changed)
 
@@ -162,8 +179,10 @@ class MainWindow(QMainWindow):
     def _set_year_data(self, data: YearData | None) -> None:
         self._current_year_data = data
         if data is None:
+            self.model.set_repetent_os_cisla(set())
             self.model.set_students([])
             self.detail.set_student(None)
+            self.stats_panel.set_stats(compute_stats(YearData(year=0)))
             self.action_export.setEnabled(False)
             self.action_import.setEnabled(False)
             self.action_edit_year.setEnabled(False)
@@ -175,9 +194,21 @@ class MainWindow(QMainWindow):
         self.action_edit_year.setEnabled(True)
         self.action_save.setEnabled(True)
         self.action_delete_student.setEnabled(True)
+        # Set repetent os_cisla *before* set_students, aby tabulka při prvním
+        # renderu měla správné podbarvení řádků.
+        repetents = previous_years_os_cisla(self.data_dir, data.year)
+        self.model.set_repetent_os_cisla(repetents)
         self.model.set_students(data.students)
         self.detail.set_student(None)
+        self._refresh_stats()
         self._update_status_for_year()
+
+    def _refresh_stats(self) -> None:
+        if self._current_year_data is None:
+            return
+        repetents = self.model._repetent_os_cisla  # already up-to-date
+        stats = compute_stats(self._current_year_data, repetents)
+        self.stats_panel.set_stats(stats)
 
     def _update_status_for_year(self) -> None:
         d = self._current_year_data
