@@ -120,3 +120,15 @@ def test_istqb_off_keeps_normal_logic():
     s.ma_istqb_ctfl = False
     r = evaluate(s)
     assert r.znamka == "F"
+
+
+def test_projekt_percent_ignores_bonus():
+    """Projekt % se počítá z čistých bodů projektu, ne z projekt + bonus."""
+    s = make_student(test1=15, test2=15, projekt=120,
+                     bonus=BonusBreakdown(test1=0, test2=0, projekt=50))
+    r = evaluate(s)
+    # 120 / 150 = 0.8 — ne 170/150 = 1.13
+    assert r.projekt_percent == pytest.approx(0.8, abs=0.001)
+    # Ale projekt_total i celkem počítají bonus normálně.
+    assert r.projekt_total == pytest.approx(170)
+    assert r.celkem == pytest.approx(15 + 15 + 120 + 50)

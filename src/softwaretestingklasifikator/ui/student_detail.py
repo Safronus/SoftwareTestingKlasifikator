@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from softwaretestingklasifikator.config import (
+    DATE_FORMAT_QT,
     GATE_PROJEKT,
     GATE_TEST1,
     GATE_TEST2,
@@ -103,7 +104,7 @@ class StudentDetailPanel(QWidget):
         self.chk_istqb = QCheckBox("Má certifikát ISTQB CTFL → automatická A")
         self.chk_istqb.setStyleSheet("color: #6e5000; font-weight: bold;")
         self.date_odevzdani = QDateEdit()
-        self.date_odevzdani.setDisplayFormat("yyyy-MM-dd")
+        self.date_odevzdani.setDisplayFormat(DATE_FORMAT_QT)
         self.date_odevzdani.setCalendarPopup(True)
         self.date_odevzdani.setSpecialValueText("—")
         from PySide6.QtCore import QDate

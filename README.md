@@ -134,5 +134,6 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.2.1** — UI polish: maximalizace okna po startu, datumy ve formátu DD.MM.YYYY, barevné odlišení skupin sloupců (jako v Excelu — identity / testy / projekt / bonus / meta / result / komentář), oprava `Projekt %` (počítá se z čistých bodů projektu bez bonusu), tmavší text na řádcích repetentů, oprava překrývání statistického docku při přepínání ročníků, cache výsledků hodnocení v tabulce kvůli plynulejšímu scrollování.
 **0.2.0** — ISTQB CTFL automatická A, top-5 podle Celkem, barevná tabulka, statistický dock, 4-stavé odevzdání, detekce repetentů, dynamická detekce sloupců Excelu a načítání deadlinů.
 **0.1.0** — počáteční verze (gating, bonus, JSON persistence, CSV import/export, PySide6 UI).

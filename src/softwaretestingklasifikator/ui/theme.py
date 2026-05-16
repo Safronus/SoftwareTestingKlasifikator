@@ -52,7 +52,22 @@ DOCHAZKA_FAIL_BG = QColor(204, 70, 70)
 
 # Pozadí pro řádek repetenta (mírná tónace, čitelný i přes ostatní barvy).
 REPETENT_ROW_BG = QColor(255, 220, 180)  # světle lososová
-REPETENT_FG = QColor(150, 70, 0)
+REPETENT_FG = QColor(50, 25, 0)  # velmi tmavá hnědá, čitelná na lososovém pozadí
+
+
+# Jemné tinty pozadí pro skupiny sloupců (jako v Excelu).
+# Aplikuje se na buňky, které nemají vlastní stavovou barvu (známka, docházka,
+# pokus, …). Záměrně velmi světlé, aby byly text a kontrastní stavy čitelné.
+GROUP_BG = {
+    "badge": QColor(245, 245, 250),     # rank, repetent, istqb
+    "identity": QColor(225, 235, 250),  # os_cislo, prijmeni, jmeno (světle modrá)
+    "tests": QColor(232, 245, 232),     # test1, test2 (světle zelená)
+    "project": QColor(255, 245, 220),   # projekt, projekt% (světle žlutá)
+    "bonus": QColor(245, 232, 250),     # bonus_total (světle fialová)
+    "meta": QColor(248, 248, 248),      # dochazka, datum, pokus
+    "result": QColor(255, 232, 215),    # celkem, znamka (světle pomerančová)
+    "note": QColor(252, 252, 235),      # komentar (světle krémová)
+}
 
 # Zlato pro Top-5 sloupec.
 TOP_RANK_BG = {

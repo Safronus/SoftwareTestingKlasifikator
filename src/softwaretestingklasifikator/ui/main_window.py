@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from softwaretestingklasifikator import __version__
-from softwaretestingklasifikator.config import SUBJECT_CODE
+from softwaretestingklasifikator.config import DATE_FORMAT_PY, SUBJECT_CODE
 from softwaretestingklasifikator.domain.models import YearData
 from softwaretestingklasifikator.domain.stats import (
     compute_stats,
@@ -224,9 +224,9 @@ class MainWindow(QMainWindow):
         dl = d.deadlines
         dl_text = []
         if dl.first:
-            dl_text.append(f"1. pokus do {dl.first.isoformat()}")
+            dl_text.append(f"1. pokus do {dl.first.strftime(DATE_FORMAT_PY)}")
         if dl.second:
-            dl_text.append(f"2. pokus do {dl.second.isoformat()}")
+            dl_text.append(f"2. pokus do {dl.second.strftime(DATE_FORMAT_PY)}")
         suffix = " · " + " · ".join(dl_text) if dl_text else ""
         self._update_status(f"Ročník {d.year} ({len(d.students)} studentů){suffix}")
 

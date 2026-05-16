@@ -14,7 +14,7 @@ def main() -> int:
     app.setApplicationName("SoftwareTestingKlasifikator")
     app.setOrganizationName("UTB-FAI")
     window = MainWindow()
-    window.show()
+    window.showMaximized()
     return app.exec()
 
 

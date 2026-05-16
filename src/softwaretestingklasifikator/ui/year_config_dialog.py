@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from softwaretestingklasifikator.config import DATE_FORMAT_QT
 from softwaretestingklasifikator.domain.models import YearDeadlines
 
 
@@ -42,13 +43,13 @@ class YearConfigDialog(QDialog):
         form.addRow("Akademický rok (LS):", self.spin_year)
 
         self.date_first = QDateEdit()
-        self.date_first.setDisplayFormat("yyyy-MM-dd")
+        self.date_first.setDisplayFormat(DATE_FORMAT_QT)
         self.date_first.setCalendarPopup(True)
         self.date_first.setSpecialValueText("—")
         self.date_first.setMinimumDate(QDate(2000, 1, 1))
 
         self.date_second = QDateEdit()
-        self.date_second.setDisplayFormat("yyyy-MM-dd")
+        self.date_second.setDisplayFormat(DATE_FORMAT_QT)
         self.date_second.setCalendarPopup(True)
         self.date_second.setSpecialValueText("—")
         self.date_second.setMinimumDate(QDate(2000, 1, 1))

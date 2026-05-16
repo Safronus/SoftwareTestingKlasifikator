@@ -82,7 +82,10 @@ def evaluate(student: Student) -> GradeResult:
     t1 = _r(student.test1 + student.bonus.test1)
     t2 = _r(student.test2 + student.bonus.test2)
     pj = _r(student.projekt + student.bonus.projekt)
-    pj_pct = _r(pj / MAX_PROJEKT) if MAX_PROJEKT else 0.0
+    # Projekt % se počítá z čistých bodů projektu (bez bonusu) — odpovídá
+    # praxi v původním Excelu (E/150), aby procento odráželo skutečný
+    # výkon na projektu, ne navýšení bonusem.
+    pj_pct = _r(student.projekt / MAX_PROJEKT) if MAX_PROJEKT else 0.0
     celkem = _r(student.test1 + student.test2 + student.projekt + student.bonus.total())
 
     # ISTQB CTFL → automatická A bez ohledu na body i bránu.

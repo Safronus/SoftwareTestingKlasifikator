@@ -5,7 +5,6 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
-    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -14,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from softwaretestingklasifikator.config import DATE_FORMAT_PY
 from softwaretestingklasifikator.domain.models import (
     POKUS_LABELS,
     POKUS_NEODEVZDAL,
@@ -69,43 +69,47 @@ def _make_section_title(text: str) -> QLabel:
 
 
 class StatsPanel(QWidget):
-    """Pravý dolní dock se statistikou ročníku."""
+    """Pravý dolní dock se statistikou ročníku.
+
+    Strategie: vnitřní `_inner` widget je vždy kompletně nahrazen
+    (re-create) — bez `takeAt`/`deleteLater` race se starými prvky.
+    """
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(8, 8, 8, 8)
-        self._layout.setSpacing(6)
-        self.set_stats(YearStats())
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        self._inner: QWidget | None = None
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
+        self.set_stats(YearStats())
 
     def set_stats(self, stats: YearStats, deadlines: YearDeadlines | None = None) -> None:
-        # Vyčistit
-        while self._layout.count():
-            item = self._layout.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.deleteLater()
+        # Nahradíme celý vnitřní widget — žádné race s deleteLater.
+        new_inner = QWidget(self)
+        layout = QVBoxLayout(new_inner)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
 
-        # Deadliny (nahoře, ať jsou hned vidět)
+        # Deadliny (nahoře)
         if deadlines is not None and (deadlines.first or deadlines.second):
-            self._layout.addWidget(_make_section_title("Termíny odevzdání"))
+            layout.addWidget(_make_section_title("Termíny odevzdání"))
             dl_grid = QGridLayout()
             dl_grid.setSpacing(0)
             dl_grid.addWidget(_make_cell(
                 "1. termín", QColor(146, 208, 80), QColor(20, 60, 20), bold=True), 0, 0)
             dl_grid.addWidget(_make_cell(
-                deadlines.first.isoformat() if deadlines.first else "—",
+                deadlines.first.strftime(DATE_FORMAT_PY) if deadlines.first else "—",
                 QColor(245, 245, 245), QColor(40, 40, 40), bold=False), 0, 1)
             dl_grid.addWidget(_make_cell(
                 "Opravný", QColor(246, 178, 107), QColor(90, 50, 10), bold=True), 1, 0)
             dl_grid.addWidget(_make_cell(
-                deadlines.second.isoformat() if deadlines.second else "—",
+                deadlines.second.strftime(DATE_FORMAT_PY) if deadlines.second else "—",
                 QColor(245, 245, 245), QColor(40, 40, 40), bold=False), 1, 1)
-            self._layout.addLayout(dl_grid)
+            layout.addLayout(dl_grid)
 
         # Známky
-        self._layout.addWidget(_make_section_title("Počet známek"))
+        layout.addWidget(_make_section_title("Počet známek"))
         grade_grid = QGridLayout()
         grade_grid.setSpacing(0)
         for row, letter in enumerate(GRADE_ORDER):
@@ -116,10 +120,10 @@ class StatsPanel(QWidget):
                 _make_cell(str(stats.grades.get(letter, 0)), _COUNT_BG, _COUNT_FG, bold=True, min_width=40),
                 row, 1,
             )
-        self._layout.addLayout(grade_grid)
+        layout.addLayout(grade_grid)
 
         # Splnilo / Nesplnilo / Celkem
-        self._layout.addWidget(_make_section_title("Splnilo / Nesplnilo"))
+        layout.addWidget(_make_section_title("Splnilo / Nesplnilo"))
         sn_grid = QGridLayout()
         sn_grid.setSpacing(0)
         sn_grid.addWidget(_make_cell("Splnilo", DOCHAZKA_OK_BG, QColor(20, 60, 20), bold=True), 0, 0)
@@ -128,10 +132,10 @@ class StatsPanel(QWidget):
         sn_grid.addWidget(_make_cell(str(stats.nesplnilo), _COUNT_BG, _COUNT_FG, bold=True), 1, 1)
         sn_grid.addWidget(_make_cell("Celkem", QColor(220, 220, 220), QColor(40, 40, 40), bold=True), 2, 0)
         sn_grid.addWidget(_make_cell(str(stats.celkem), _COUNT_BG, _COUNT_FG, bold=True), 2, 1)
-        self._layout.addLayout(sn_grid)
+        layout.addLayout(sn_grid)
 
-        # Odevzdal — řádný / oprava / po termínu / neodevzdal (horizontální bar)
-        self._layout.addWidget(_make_section_title("Stav odevzdání"))
+        # Stav odevzdání
+        layout.addWidget(_make_section_title("Stav odevzdání"))
         odev_row = QHBoxLayout()
         odev_row.setSpacing(0)
         for state in (POKUS_RADNY, POKUS_OPRAVNY, POKUS_PO_TERMINU, POKUS_NEODEVZDAL):
@@ -145,10 +149,10 @@ class StatsPanel(QWidget):
             )
             cell.setWordWrap(True)
             odev_row.addWidget(cell)
-        self._layout.addLayout(odev_row)
+        layout.addLayout(odev_row)
 
         # Docházka
-        self._layout.addWidget(_make_section_title("Docházka"))
+        layout.addWidget(_make_section_title("Docházka"))
         doch_row = QHBoxLayout()
         doch_row.setSpacing(0)
         doch_row.addWidget(_make_cell(
@@ -159,19 +163,24 @@ class StatsPanel(QWidget):
             f"Nesplněno\n{stats.dochazka_nesplneno}",
             DOCHAZKA_FAIL_BG, QColor(255, 255, 255), bold=True, min_width=70,
         ))
-        self._layout.addLayout(doch_row)
+        layout.addLayout(doch_row)
 
         # ISTQB CTFL + Repetenti
-        self._layout.addSpacing(4)
+        layout.addWidget(_make_section_title("ISTQB / Repetenti"))
         extra = QGridLayout()
         extra.setSpacing(0)
         extra.addWidget(_make_cell("ISTQB CTFL", ISTQB_BG, ISTQB_FG, bold=True, min_width=110), 0, 0)
         extra.addWidget(_make_cell(str(stats.istqb), _COUNT_BG, _COUNT_FG, bold=True, min_width=50), 0, 1)
         extra.addWidget(_make_cell("Repetenti", REPETENT_ROW_BG, QColor(80, 40, 0), bold=True, min_width=110), 1, 0)
         extra.addWidget(_make_cell(str(stats.repetenti), _COUNT_BG, _COUNT_FG, bold=True, min_width=50), 1, 1)
-        self._layout.addLayout(extra)
+        layout.addLayout(extra)
 
-        # spacer
-        spacer = QFrame()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._layout.addWidget(spacer)
+        layout.addStretch(1)
+
+        # Swap inner widget atomically.
+        if self._inner is not None:
+            self.layout().removeWidget(self._inner)
+            self._inner.setParent(None)
+            self._inner.deleteLater()
+        self.layout().addWidget(new_inner)
+        self._inner = new_inner

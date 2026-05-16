@@ -5,15 +5,16 @@ from __future__ import annotations
 from datetime import date
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
-from PySide6.QtGui import QBrush, QFont
+from PySide6.QtGui import QBrush, QColor, QFont
 
 from softwaretestingklasifikator.config import (
+    DATE_FORMAT_PY,
     MAX_PROJEKT,
     MAX_TEST1,
     MAX_TEST2,
     POINTS_DECIMALS,
 )
-from softwaretestingklasifikator.domain.grading import evaluate
+from softwaretestingklasifikator.domain.grading import GradeResult, evaluate
 from softwaretestingklasifikator.domain.models import (
     POKUS_LABELS,
     POKUS_VALUES,
@@ -25,6 +26,7 @@ from softwaretestingklasifikator.ui.theme import (
     DOCHAZKA_OK_BG,
     GRADE_BG,
     GRADE_FG,
+    GROUP_BG,
     ISTQB_BG,
     ISTQB_FG,
     POKUS_BG,
@@ -36,25 +38,25 @@ from softwaretestingklasifikator.ui.theme import (
     projekt_percent_bg,
 )
 
-# (klíč, label, editable, min_width)
-COLUMNS: tuple[tuple[str, str, bool, int], ...] = (
-    ("rank", "🏆", False, 36),
-    ("repetent", "↻", False, 32),
-    ("istqb", "ISTQB", True, 56),
-    ("os_cislo", "Os. číslo", False, 80),
-    ("prijmeni", "Příjmení", True, 130),
-    ("jmeno", "Jméno", True, 110),
-    ("test1", "Test 1", True, 60),
-    ("test2", "Test 2", True, 60),
-    ("projekt", "Projekt", True, 70),
-    ("projekt_pct", "Projekt %", False, 70),
-    ("bonus_total", "Bonus", False, 60),
-    ("dochazka", "Docházka", True, 70),
-    ("datum_odevzdani", "Odevzdání", True, 100),
-    ("pokus", "Pokus", True, 110),
-    ("celkem", "Celkem", False, 70),
-    ("znamka", "Známka", False, 60),
-    ("komentar", "Komentář", True, 200),
+# (klíč, label, editable, min_width, skupina)
+COLUMNS: tuple[tuple[str, str, bool, int, str], ...] = (
+    ("rank", "🏆", False, 36, "badge"),
+    ("repetent", "↻", False, 32, "badge"),
+    ("istqb", "ISTQB", True, 56, "badge"),
+    ("os_cislo", "Os. číslo", False, 80, "identity"),
+    ("prijmeni", "Příjmení", True, 130, "identity"),
+    ("jmeno", "Jméno", True, 110, "identity"),
+    ("test1", "Test 1", True, 60, "tests"),
+    ("test2", "Test 2", True, 60, "tests"),
+    ("projekt", "Projekt", True, 70, "project"),
+    ("projekt_pct", "Projekt %", False, 70, "project"),
+    ("bonus_total", "Bonus", False, 60, "bonus"),
+    ("dochazka", "Docházka", True, 70, "meta"),
+    ("datum_odevzdani", "Odevzdání", True, 100, "meta"),
+    ("pokus", "Pokus", True, 110, "meta"),
+    ("celkem", "Celkem", False, 70, "result"),
+    ("znamka", "Známka", False, 60, "result"),
+    ("komentar", "Komentář", True, 200, "note"),
 )
 
 
@@ -70,6 +72,18 @@ class StudentTableModel(QAbstractTableModel):
         self._students: list[Student] = students or []
         self._repetent_os_cisla: set[str] = set()
         self._top_ranks: dict[int, int] = {}
+        # Cache GradeResult per row — invaliduje se při set_students /
+        # emit_row_changed. Bez ní by se evaluate() volalo pro každou
+        # buňku × roli (~5000+ volání na refresh) a scroll znatelně sekal.
+        self._eval_cache: dict[int, GradeResult] = {}
+
+    def _eval(self, row: int, student: Student) -> GradeResult:
+        cached = self._eval_cache.get(row)
+        if cached is not None:
+            return cached
+        r = evaluate(student)
+        self._eval_cache[row] = r
+        return r
 
     # ---- public API ----
     def students(self) -> list[Student]:
@@ -79,6 +93,7 @@ class StudentTableModel(QAbstractTableModel):
         self.beginResetModel()
         self._students = students
         self._top_ranks = {}
+        self._eval_cache.clear()
         self.endResetModel()
 
     def student_at(self, row: int) -> Student | None:
@@ -89,6 +104,7 @@ class StudentTableModel(QAbstractTableModel):
     def set_repetent_os_cisla(self, os_cisla: set[str]) -> None:
         self.beginResetModel()
         self._repetent_os_cisla = set(os_cisla)
+        self._eval_cache.clear()
         self.endResetModel()
 
     def repetent_os_cisla(self) -> set[str]:
@@ -109,6 +125,7 @@ class StudentTableModel(QAbstractTableModel):
 
     def emit_row_changed(self, row: int) -> None:
         if 0 <= row < len(self._students):
+            self._eval_cache.pop(row, None)
             top = self.index(row, 0)
             bottom = self.index(row, self.columnCount() - 1)
             self.dataChanged.emit(
@@ -126,6 +143,7 @@ class StudentTableModel(QAbstractTableModel):
         row = len(self._students)
         self.beginInsertRows(QModelIndex(), row, row)
         self._students.append(student)
+        self._eval_cache.clear()
         self.endInsertRows()
         self.studentChanged.emit(row)
 
@@ -134,6 +152,7 @@ class StudentTableModel(QAbstractTableModel):
             return
         self.beginRemoveRows(QModelIndex(), row, row)
         self._students.pop(row)
+        self._eval_cache.clear()
         self.endRemoveRows()
 
     # ---- Qt API ----
@@ -173,7 +192,7 @@ class StudentTableModel(QAbstractTableModel):
     def flags(self, index: QModelIndex) -> Qt.ItemFlag:
         if not index.isValid():
             return Qt.ItemFlag.NoItemFlags
-        key, _, editable, _ = COLUMNS[index.column()]
+        key, _, editable, _, _ = COLUMNS[index.column()]
         base = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
         if key in ("dochazka", "istqb"):
             base |= Qt.ItemFlag.ItemIsUserCheckable
@@ -185,8 +204,8 @@ class StudentTableModel(QAbstractTableModel):
         if not index.isValid():
             return None
         student = self._students[index.row()]
-        key, _, _, _ = COLUMNS[index.column()]
-        result = evaluate(student)
+        key, _, _, _, group = COLUMNS[index.column()]
+        result = self._eval(index.row(), student)
         grade = student.znamka_override or result.znamka
         repetent = self.is_repetent(student)
         rank = self._top_ranks.get(index.row())
@@ -222,7 +241,11 @@ class StudentTableModel(QAbstractTableModel):
             if key == "dochazka":
                 return ""
             if key == "datum_odevzdani":
-                return student.datum_odevzdani.isoformat() if student.datum_odevzdani else ""
+                if not student.datum_odevzdani:
+                    return ""
+                if role == Qt.ItemDataRole.EditRole:
+                    return student.datum_odevzdani.isoformat()
+                return student.datum_odevzdani.strftime(DATE_FORMAT_PY)
             if key == "pokus":
                 if role == Qt.ItemDataRole.EditRole:
                     return student.pokus
@@ -235,6 +258,10 @@ class StudentTableModel(QAbstractTableModel):
                 return student.komentar
 
         if role == Qt.ItemDataRole.BackgroundRole:
+            # Repetent přebíjí všechny stavové sloupce (lososové pozadí celý řádek).
+            if repetent:
+                return QBrush(REPETENT_ROW_BG)
+            # Stavové barvy mají přednost před skupinou.
             if key == "rank" and rank:
                 return QBrush(TOP_RANK_BG.get(rank, TOP_RANK_BG[5]))
             if key == "znamka":
@@ -245,14 +272,16 @@ class StudentTableModel(QAbstractTableModel):
                 return QBrush(POKUS_BG.get(student.pokus, POKUS_BG["radny"]))
             if key == "projekt_pct":
                 return QBrush(projekt_percent_bg(result.projekt_percent))
-            if key == "istqb":
-                return QBrush(ISTQB_BG if student.ma_istqb_ctfl else QBrush(Qt.GlobalColor.transparent))
-            if key == "repetent" and repetent:
-                return QBrush(REPETENT_ROW_BG)
-            if repetent:
-                return QBrush(REPETENT_ROW_BG)
+            if key == "istqb" and student.ma_istqb_ctfl:
+                return QBrush(ISTQB_BG)
+            # Skupinový tint pro buňky bez vlastní stavové barvy.
+            if group in GROUP_BG:
+                return QBrush(GROUP_BG[group])
 
         if role == Qt.ItemDataRole.ForegroundRole:
+            # Na repetent (lososové) pozadí ne-stavové sloupce dostávají tmavý text.
+            if repetent and key not in ("znamka", "dochazka", "pokus"):
+                return QBrush(REPETENT_FG)
             if key == "rank" and rank:
                 return QBrush(TOP_RANK_FG)
             if key == "znamka":
@@ -263,8 +292,8 @@ class StudentTableModel(QAbstractTableModel):
                 return QBrush(POKUS_FG.get(student.pokus, POKUS_FG["radny"]))
             if key == "istqb" and student.ma_istqb_ctfl:
                 return QBrush(ISTQB_FG)
-            if key == "repetent" and repetent:
-                return QBrush(REPETENT_FG)
+            # Defaultní tmavý text pro group-tinted buňky — čitelné v light i dark mode.
+            return QBrush(QColor(30, 30, 30))
 
         if role == Qt.ItemDataRole.FontRole and key in ("znamka", "rank", "repetent", "istqb"):
             font = QFont()
@@ -316,7 +345,7 @@ class StudentTableModel(QAbstractTableModel):
         if not index.isValid():
             return False
         student = self._students[index.row()]
-        key, _, editable, _ = COLUMNS[index.column()]
+        key, _, editable, _, _ = COLUMNS[index.column()]
 
         if key == "dochazka" and role == Qt.ItemDataRole.CheckStateRole:
             checked = Qt.CheckState(value) == Qt.CheckState.Checked
@@ -353,7 +382,12 @@ class StudentTableModel(QAbstractTableModel):
                 if not s:
                     student.datum_odevzdani = None
                 else:
-                    student.datum_odevzdani = date.fromisoformat(s)
+                    # Akceptuj DD.MM.YYYY i ISO (YYYY-MM-DD).
+                    try:
+                        student.datum_odevzdani = date.fromisoformat(s)
+                    except ValueError:
+                        from datetime import datetime
+                        student.datum_odevzdani = datetime.strptime(s, DATE_FORMAT_PY).date()
             elif key == "pokus":
                 v = str(value).strip()
                 if v in POKUS_VALUES:

@@ -35,3 +35,9 @@ STAG_CSV_QUOTECHAR: str = '"'
 # Předmět a katedra (pro export, pevně dáno).
 SUBJECT_DEPARTMENT: str = "AUIUI"
 SUBJECT_CODE: str = "AP4TS"
+
+# Formát datumu zobrazovaný uživateli (české DD.MM.YYYY).
+# Pro Python `strftime`/`strptime` použij `DATE_FORMAT_PY`,
+# pro Qt `QDateEdit.setDisplayFormat` použij `DATE_FORMAT_QT`.
+DATE_FORMAT_PY: str = "%d.%m.%Y"
+DATE_FORMAT_QT: str = "dd.MM.yyyy"
