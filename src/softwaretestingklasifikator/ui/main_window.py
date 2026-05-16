@@ -106,6 +106,12 @@ class MainWindow(QMainWindow):
         self.action_delete_student.triggered.connect(self._delete_selected_student)
         toolbar.addAction(self.action_delete_student)
 
+        self.action_show_finished = QAction("👁 Zobrazit ukončené", self)
+        self.action_show_finished.setCheckable(True)
+        self.action_show_finished.setChecked(False)
+        self.action_show_finished.toggled.connect(self._apply_row_visibility)
+        toolbar.addAction(self.action_show_finished)
+
         # --- Central: studentská tabulka -----------------------------
         self.table = QTableView()
         self.table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
@@ -121,6 +127,7 @@ class MainWindow(QMainWindow):
             self.table.setColumnWidth(i, self.model.column_default_width(i))
         self.model.studentChanged.connect(self._schedule_autosave)
         self.model.studentChanged.connect(lambda *_: self._refresh_stats())
+        self.model.studentChanged.connect(lambda *_: self._apply_row_visibility())
         self.setCentralWidget(self.table)
 
         # ComboBox delegate pro sloupec „Pokus"
@@ -207,6 +214,7 @@ class MainWindow(QMainWindow):
         self.model.set_students(data.students)
         self.detail.set_student(None)
         self._refresh_stats()
+        self._apply_row_visibility()
         self._update_status_for_year()
 
     def _refresh_stats(self) -> None:
@@ -215,7 +223,23 @@ class MainWindow(QMainWindow):
         repetents = self.model.repetent_os_cisla()
         stats = compute_stats(self._current_year_data, repetents)
         self.stats_panel.set_stats(stats, deadlines=self._current_year_data.deadlines)
-        self.model.set_top_ranks(top_n_indices(self.model.students(), n=5))
+        # Top 5 počítáme jen z aktivních (ne-ukončených) studentů.
+        active_indices = [
+            i for i, s in enumerate(self.model.students()) if not s.ukoncil_studium
+        ]
+        active = [self.model.students()[i] for i in active_indices]
+        active_ranks = top_n_indices(active, n=5)
+        # remap zpět na původní indexy
+        ranks = {active_indices[k]: v for k, v in active_ranks.items()}
+        self.model.set_top_ranks(ranks)
+
+    def _apply_row_visibility(self) -> None:
+        """Skryje studenty s `ukoncil_studium=True`, pokud není zapnutý toggle."""
+        if self._current_year_data is None:
+            return
+        show_finished = self.action_show_finished.isChecked()
+        for row, student in enumerate(self.model.students()):
+            self.table.setRowHidden(row, student.ukoncil_studium and not show_finished)
 
     def _update_status_for_year(self) -> None:
         d = self._current_year_data

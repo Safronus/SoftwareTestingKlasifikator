@@ -86,6 +86,7 @@ class Student:
     datum_odevzdani: date | None = None
     pokus: str = POKUS_RADNY  # viz POKUS_VALUES
     ma_istqb_ctfl: bool = False  # certifikát ISTQB CTFL → automaticky A
+    ukoncil_studium: bool = False  # student už nestuduje — skryt z tabulky
     komentar: str = ""
 
     # Volitelná uložená známka (např. při importu historických dat).
@@ -127,6 +128,7 @@ class Student:
             datum_odevzdani=date.fromisoformat(datum_str) if datum_str else None,
             pokus=_normalize_pokus(data.get("pokus", POKUS_RADNY)),
             ma_istqb_ctfl=bool(data.get("ma_istqb_ctfl", False)),
+            ukoncil_studium=bool(data.get("ukoncil_studium", False)),
             komentar=str(data.get("komentar", "") or ""),
             znamka_override=(data.get("znamka_override") or None),
         )

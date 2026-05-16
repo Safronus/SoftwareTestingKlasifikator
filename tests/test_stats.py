@@ -97,3 +97,41 @@ def test_compute_stats_counts_repetenti():
     stats = compute_stats(YearData(year=2026, students=students),
                          repetent_os_cisla={"A1", "A3"})
     assert stats.repetenti == 2
+
+
+def test_compute_stats_excludes_finished_by_default():
+    students = [
+        _s("A1", test1=25, test2=25, projekt=150),
+        _s("A2", test1=25, test2=25, projekt=150, ukoncil_studium=True),
+        _s("A3", test1=25, test2=25, projekt=150, ukoncil_studium=True),
+    ]
+    stats = compute_stats(YearData(year=2026, students=students))
+    assert stats.celkem == 1  # jen A1
+    assert stats.ukoncilo == 2  # A2 + A3 ukončili
+    # Když explicitně chceme i ukončené:
+    stats_all = compute_stats(YearData(year=2026, students=students), exclude_finished=False)
+    assert stats_all.celkem == 3
+
+
+def test_compute_stats_splnilo_diky_bonusu():
+    from softwaretestingklasifikator.domain.models import BonusBreakdown
+    students = [
+        # A1: čistě 17 v T1, splnil bez bonusu (žádný bonus)
+        _s("A1", test1=17, test2=20, projekt=100),
+        # A2: T1=14 pod bránou, ale bonus T1=2 → 16 ≥ 15 — splnil díky bonusu
+        _s("A2", test1=14, test2=20, projekt=100,
+           bonus=BonusBreakdown(test1=2, test2=0, projekt=0)),
+        # A3: i s bonusem F (test1+bonus < 15)
+        _s("A3", test1=10, test2=10, projekt=50,
+           bonus=BonusBreakdown(test1=1, test2=1, projekt=1)),
+    ]
+    stats = compute_stats(YearData(year=2026, students=students))
+    assert stats.splnilo == 2  # A1 + A2
+    assert stats.splnilo_diky_bonusu == 1  # jen A2
+
+
+def test_compute_stats_istqb_not_counted_as_diky_bonusu():
+    students = [_s("A1", test1=0, test2=0, projekt=0, ma_istqb_ctfl=True, dochazka=False)]
+    stats = compute_stats(YearData(year=2026, students=students))
+    assert stats.splnilo == 1  # ISTQB → A
+    assert stats.splnilo_diky_bonusu == 0  # ne díky bonusu

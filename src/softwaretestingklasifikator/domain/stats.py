@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from softwaretestingklasifikator.config import GRADE_BANDS
 from softwaretestingklasifikator.domain.grading import evaluate
 from softwaretestingklasifikator.domain.models import (
     POKUS_LABELS,
     POKUS_VALUES,
+    BonusBreakdown,
     Student,
     YearData,
 )
@@ -24,6 +25,8 @@ class YearStats:
     dochazka_nesplneno: int = 0
     repetenti: int = 0
     istqb: int = 0
+    ukoncilo: int = 0
+    splnilo_diky_bonusu: int = 0
     celkem: int = 0
 
     @property
@@ -36,11 +39,26 @@ class YearStats:
         return self.grades.get("F", 0)
 
 
-def compute_stats(year_data: YearData, repetent_os_cisla: set[str] | None = None) -> YearStats:
+def compute_stats(
+    year_data: YearData,
+    repetent_os_cisla: set[str] | None = None,
+    *,
+    exclude_finished: bool = True,
+) -> YearStats:
+    """Spočítá statistiky ročníku.
+
+    `exclude_finished=True`: počítá jen aktivní studenty (s `ukoncil_studium=False`).
+    Počet ukončených je vždy v poli `ukoncilo` zvlášť.
+    """
     repetent_os_cisla = repetent_os_cisla or set()
     stats = YearStats()
-    stats.celkem = len(year_data.students)
-    for s in year_data.students:
+    stats.ukoncilo = sum(1 for s in year_data.students if s.ukoncil_studium)
+    active = [
+        s for s in year_data.students
+        if not (exclude_finished and s.ukoncil_studium)
+    ]
+    stats.celkem = len(active)
+    for s in active:
         result = evaluate(s)
         grade = s.znamka_override or result.znamka
         stats.grades[grade] = stats.grades.get(grade, 0) + 1
@@ -53,6 +71,11 @@ def compute_stats(year_data: YearData, repetent_os_cisla: set[str] | None = None
             stats.repetenti += 1
         if s.ma_istqb_ctfl:
             stats.istqb += 1
+        # Splnilo díky bonusu = teď není F, ale bez bonusu by F bylo.
+        if grade != "F" and not s.ma_istqb_ctfl and s.bonus.total() > 0:
+            without_bonus = replace(s, bonus=BonusBreakdown())
+            if evaluate(without_bonus).znamka == "F":
+                stats.splnilo_diky_bonusu += 1
     return stats
 
 

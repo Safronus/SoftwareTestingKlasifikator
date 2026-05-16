@@ -126,7 +126,11 @@ class StatsPanel(QWidget):
         layout.addWidget(_make_section_title("Splnilo / Nesplnilo"))
         sn_grid = QGridLayout()
         sn_grid.setSpacing(0)
-        sn_grid.addWidget(_make_cell("Splnilo", DOCHAZKA_OK_BG, QColor(20, 60, 20), bold=True), 0, 0)
+        splnilo_text = (
+            f"Splnilo  ({stats.splnilo_diky_bonusu} díky bonusu)"
+            if stats.splnilo_diky_bonusu else "Splnilo"
+        )
+        sn_grid.addWidget(_make_cell(splnilo_text, DOCHAZKA_OK_BG, QColor(20, 60, 20), bold=True), 0, 0)
         sn_grid.addWidget(_make_cell(str(stats.splnilo), _COUNT_BG, _COUNT_FG, bold=True, min_width=40), 0, 1)
         sn_grid.addWidget(_make_cell("Nesplnilo", DOCHAZKA_FAIL_BG, QColor(255, 255, 255), bold=True), 1, 0)
         sn_grid.addWidget(_make_cell(str(stats.nesplnilo), _COUNT_BG, _COUNT_FG, bold=True), 1, 1)
@@ -165,14 +169,16 @@ class StatsPanel(QWidget):
         ))
         layout.addLayout(doch_row)
 
-        # ISTQB CTFL + Repetenti
-        layout.addWidget(_make_section_title("ISTQB / Repetenti"))
+        # ISTQB CTFL + Repetenti + Ukončilo studium
+        layout.addWidget(_make_section_title("ISTQB / Repetenti / Ukončení"))
         extra = QGridLayout()
         extra.setSpacing(0)
-        extra.addWidget(_make_cell("ISTQB CTFL", ISTQB_BG, ISTQB_FG, bold=True, min_width=110), 0, 0)
+        extra.addWidget(_make_cell("ISTQB CTFL", ISTQB_BG, ISTQB_FG, bold=True, min_width=130), 0, 0)
         extra.addWidget(_make_cell(str(stats.istqb), _COUNT_BG, _COUNT_FG, bold=True, min_width=50), 0, 1)
-        extra.addWidget(_make_cell("Repetenti", REPETENT_ROW_BG, QColor(80, 40, 0), bold=True, min_width=110), 1, 0)
+        extra.addWidget(_make_cell("Repetenti", REPETENT_ROW_BG, QColor(80, 40, 0), bold=True, min_width=130), 1, 0)
         extra.addWidget(_make_cell(str(stats.repetenti), _COUNT_BG, _COUNT_FG, bold=True, min_width=50), 1, 1)
+        extra.addWidget(_make_cell("Ukončilo studium", QColor(220, 220, 220), QColor(60, 60, 60), bold=True, min_width=130), 2, 0)
+        extra.addWidget(_make_cell(str(stats.ukoncilo), _COUNT_BG, _COUNT_FG, bold=True, min_width=50), 2, 1)
         layout.addLayout(extra)
 
         layout.addStretch(1)

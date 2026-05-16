@@ -21,9 +21,11 @@ Desktopová aplikace (PySide6) pro klasifikaci studentů předmětu **AP4TS — 
 
 - barevné odstupňování známek v tabulce (A zelená → F červená),
 - barevné stavy docházky, pokusu a procenta z projektu,
+- **stavové barvy testů** — zelená (splněno čistě), žlutá (splněno s bonusem), červená (nesplněno),
 - **detekce repetentů** podle osobního čísla z předchozích ročníků (zvýrazněný řádek + ikonka `↻`),
 - **top 5** studentů podle Celkem se zlatým / stříbrným / bronzovým odznakem,
-- dock se statistikou ročníku: počet známek, splnilo/nesplnilo, rozpad stavů odevzdání, ISTQB, repetenti, deadliny.
+- **skrytí ukončených studentů** — checkbox „zakončil studium" v detailu, toggle „Zobrazit ukončené" v toolbar,
+- dock se statistikou ročníku: počet známek, splnilo/nesplnilo (včetně počtu splnivších *díky bonusu*), rozpad stavů odevzdání, ISTQB, repetenti, ukončení, deadliny.
 
 ## Pravidla klasifikace
 
@@ -134,6 +136,7 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.3.0** — Testy v tabulce mají stavové barvy: zelená (≥ 15 čistě), žlutá (≥ 15 s bonusem), červená (nesplněno). Statistika ukazuje kolik studentů „splnilo díky bonusu" jako kontextový údaj v sekci Splnilo. Nový stav studenta **„zakončil studium"** — checkbox v detailu skryje studenta z tabulky, toolbar má toggle „Zobrazit ukončené" pro práci s historií. Stavové sloupce (známka, pokus, docházka, projekt %, testy) mají nyní přednost nad barvou řádku pro repetenty.
 **0.2.1** — UI polish: maximalizace okna po startu, datumy ve formátu DD.MM.YYYY, barevné odlišení skupin sloupců (jako v Excelu — identity / testy / projekt / bonus / meta / result / komentář), oprava `Projekt %` (počítá se z čistých bodů projektu bez bonusu), tmavší text na řádcích repetentů, oprava překrývání statistického docku při přepínání ročníků, cache výsledků hodnocení v tabulce kvůli plynulejšímu scrollování.
 **0.2.0** — ISTQB CTFL automatická A, top-5 podle Celkem, barevná tabulka, statistický dock, 4-stavé odevzdání, detekce repetentů, dynamická detekce sloupců Excelu a načítání deadlinů.
 **0.1.0** — počáteční verze (gating, bonus, JSON persistence, CSV import/export, PySide6 UI).

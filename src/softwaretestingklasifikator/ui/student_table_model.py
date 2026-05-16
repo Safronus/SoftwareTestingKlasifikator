@@ -9,6 +9,8 @@ from PySide6.QtGui import QBrush, QColor, QFont
 
 from softwaretestingklasifikator.config import (
     DATE_FORMAT_PY,
+    GATE_TEST1,
+    GATE_TEST2,
     MAX_PROJEKT,
     MAX_TEST1,
     MAX_TEST2,
@@ -33,10 +35,32 @@ from softwaretestingklasifikator.ui.theme import (
     POKUS_FG,
     REPETENT_FG,
     REPETENT_ROW_BG,
+    TEST_FAIL_BG,
+    TEST_FAIL_FG,
+    TEST_PASS_BONUS_BG,
+    TEST_PASS_BONUS_FG,
+    TEST_PASS_CLEAN_BG,
+    TEST_PASS_CLEAN_FG,
     TOP_RANK_BG,
     TOP_RANK_FG,
     projekt_percent_bg,
 )
+
+
+def _test_status_bg(pure: float, total: float, gate: float) -> QColor:
+    if pure >= gate:
+        return TEST_PASS_CLEAN_BG
+    if total >= gate:
+        return TEST_PASS_BONUS_BG
+    return TEST_FAIL_BG
+
+
+def _test_status_fg(pure: float, total: float, gate: float) -> QColor:
+    if pure >= gate:
+        return TEST_PASS_CLEAN_FG
+    if total >= gate:
+        return TEST_PASS_BONUS_FG
+    return TEST_FAIL_FG
 
 # (klíč, label, editable, min_width, skupina)
 COLUMNS: tuple[tuple[str, str, bool, int, str], ...] = (
@@ -258,10 +282,7 @@ class StudentTableModel(QAbstractTableModel):
                 return student.komentar
 
         if role == Qt.ItemDataRole.BackgroundRole:
-            # Repetent přebíjí všechny stavové sloupce (lososové pozadí celý řádek).
-            if repetent:
-                return QBrush(REPETENT_ROW_BG)
-            # Stavové barvy mají přednost před skupinou.
+            # Stavové sloupce mají přednost před vším včetně repetenta.
             if key == "rank" and rank:
                 return QBrush(TOP_RANK_BG.get(rank, TOP_RANK_BG[5]))
             if key == "znamka":
@@ -272,16 +293,21 @@ class StudentTableModel(QAbstractTableModel):
                 return QBrush(POKUS_BG.get(student.pokus, POKUS_BG["radny"]))
             if key == "projekt_pct":
                 return QBrush(projekt_percent_bg(result.projekt_percent))
+            if key == "test1":
+                return QBrush(_test_status_bg(student.test1, result.test1_total, GATE_TEST1))
+            if key == "test2":
+                return QBrush(_test_status_bg(student.test2, result.test2_total, GATE_TEST2))
             if key == "istqb" and student.ma_istqb_ctfl:
                 return QBrush(ISTQB_BG)
+            # Repetent: jen ne-stavové sloupce dostávají lososové pozadí.
+            if repetent:
+                return QBrush(REPETENT_ROW_BG)
             # Skupinový tint pro buňky bez vlastní stavové barvy.
             if group in GROUP_BG:
                 return QBrush(GROUP_BG[group])
 
         if role == Qt.ItemDataRole.ForegroundRole:
-            # Na repetent (lososové) pozadí ne-stavové sloupce dostávají tmavý text.
-            if repetent and key not in ("znamka", "dochazka", "pokus"):
-                return QBrush(REPETENT_FG)
+            # Stavové FG mají přednost.
             if key == "rank" and rank:
                 return QBrush(TOP_RANK_FG)
             if key == "znamka":
@@ -290,9 +316,16 @@ class StudentTableModel(QAbstractTableModel):
                 return QBrush(Qt.GlobalColor.white)
             if key == "pokus":
                 return QBrush(POKUS_FG.get(student.pokus, POKUS_FG["radny"]))
+            if key == "test1":
+                return QBrush(_test_status_fg(student.test1, result.test1_total, GATE_TEST1))
+            if key == "test2":
+                return QBrush(_test_status_fg(student.test2, result.test2_total, GATE_TEST2))
             if key == "istqb" and student.ma_istqb_ctfl:
                 return QBrush(ISTQB_FG)
-            # Defaultní tmavý text pro group-tinted buňky — čitelné v light i dark mode.
+            # Na repetent (lososové) pozadí ne-stavové sloupce dostávají tmavý text.
+            if repetent:
+                return QBrush(REPETENT_FG)
+            # Defaultní tmavý text pro group-tinted buňky.
             return QBrush(QColor(30, 30, 30))
 
         if role == Qt.ItemDataRole.FontRole and key in ("znamka", "rank", "repetent", "istqb"):
@@ -322,6 +355,15 @@ class StudentTableModel(QAbstractTableModel):
                     f"Test 2: {result.test2_total:g} · "
                     f"Projekt: {result.projekt_total:g} ({result.projekt_percent*100:.1f} %)"
                 )
+            if key in ("test1", "test2"):
+                pure = student.test1 if key == "test1" else student.test2
+                total = result.test1_total if key == "test1" else result.test2_total
+                gate = GATE_TEST1 if key == "test1" else GATE_TEST2
+                if pure >= gate:
+                    return f"Splněno čistě ({pure:g} ≥ {gate:g})."
+                if total >= gate:
+                    return f"Splněno s bonusem ({pure:g} + bonus → {total:g} ≥ {gate:g})."
+                return f"Nesplněno ({pure:g} + bonus → {total:g} < {gate:g})."
             if key == "repetent" and repetent:
                 return "Repetent — os. číslo bylo evidováno v některém předchozím roce."
             if key == "rank" and rank:

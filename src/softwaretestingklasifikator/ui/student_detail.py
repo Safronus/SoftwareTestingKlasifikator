@@ -103,6 +103,8 @@ class StudentDetailPanel(QWidget):
         self.chk_dochazka = QCheckBox("Splněno")
         self.chk_istqb = QCheckBox("Má certifikát ISTQB CTFL → automatická A")
         self.chk_istqb.setStyleSheet("color: #6e5000; font-weight: bold;")
+        self.chk_ukoncil = QCheckBox("Student zakončil studium (skrýt z tabulky)")
+        self.chk_ukoncil.setStyleSheet("color: #707070;")
         self.date_odevzdani = QDateEdit()
         self.date_odevzdani.setDisplayFormat(DATE_FORMAT_QT)
         self.date_odevzdani.setCalendarPopup(True)
@@ -119,6 +121,7 @@ class StudentDetailPanel(QWidget):
 
         mf.addRow("Docházka", self.chk_dochazka)
         mf.addRow("ISTQB CTFL", self.chk_istqb)
+        mf.addRow("Ukončení", self.chk_ukoncil)
         mf.addRow("Datum odevzdání", self.date_odevzdani)
         mf.addRow("Stav odevzdání", self.combo_pokus)
         mf.addRow("Komentář", self.txt_komentar)
@@ -142,6 +145,7 @@ class StudentDetailPanel(QWidget):
         self.spin_bonus_pj.valueChanged.connect(self._on_value_change)
         self.chk_dochazka.toggled.connect(self._on_value_change)
         self.chk_istqb.toggled.connect(self._on_value_change)
+        self.chk_ukoncil.toggled.connect(self._on_value_change)
         self.date_odevzdani.dateChanged.connect(self._on_value_change)
         self.combo_pokus.currentIndexChanged.connect(self._on_value_change)
         self.txt_komentar.textChanged.connect(self._on_value_change)
@@ -175,11 +179,13 @@ class StudentDetailPanel(QWidget):
                           self.spin_total_bonus):
                     w.setEnabled(False)
                     w.setValue(0)
-                for w in (self.chk_dochazka, self.chk_istqb, self.date_odevzdani,
-                          self.combo_pokus, self.txt_komentar, self.btn_suggest):
+                for w in (self.chk_dochazka, self.chk_istqb, self.chk_ukoncil,
+                          self.date_odevzdani, self.combo_pokus,
+                          self.txt_komentar, self.btn_suggest):
                     w.setEnabled(False)
                 self.chk_dochazka.setChecked(False)
                 self.chk_istqb.setChecked(False)
+                self.chk_ukoncil.setChecked(False)
                 self.txt_komentar.clear()
                 self.summary_label.clear()
                 return
@@ -187,7 +193,8 @@ class StudentDetailPanel(QWidget):
             for w in (self.spin_test1, self.spin_test2, self.spin_projekt,
                       self.spin_bonus_t1, self.spin_bonus_t2, self.spin_bonus_pj,
                       self.spin_total_bonus,
-                      self.chk_dochazka, self.chk_istqb, self.date_odevzdani, self.combo_pokus,
+                      self.chk_dochazka, self.chk_istqb, self.chk_ukoncil,
+                      self.date_odevzdani, self.combo_pokus,
                       self.txt_komentar, self.btn_suggest):
                 w.setEnabled(True)
 
@@ -203,6 +210,7 @@ class StudentDetailPanel(QWidget):
             self.spin_total_bonus.setValue(student.bonus.total())
             self.chk_dochazka.setChecked(student.dochazka)
             self.chk_istqb.setChecked(student.ma_istqb_ctfl)
+            self.chk_ukoncil.setChecked(student.ukoncil_studium)
 
             from PySide6.QtCore import QDate
 
@@ -234,6 +242,7 @@ class StudentDetailPanel(QWidget):
         )
         s.dochazka = self.chk_dochazka.isChecked()
         s.ma_istqb_ctfl = self.chk_istqb.isChecked()
+        s.ukoncil_studium = self.chk_ukoncil.isChecked()
         d = self.date_odevzdani.date()
         if d == self.date_odevzdani.minimumDate():
             s.datum_odevzdani = None

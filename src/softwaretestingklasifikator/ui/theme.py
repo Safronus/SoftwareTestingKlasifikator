@@ -50,6 +50,15 @@ DOCHAZKA_OK_BG = QColor(146, 208, 80)
 DOCHAZKA_FAIL_BG = QColor(204, 70, 70)
 
 
+# Testy 1/2 — barevné odlišení podle stavu splnění brány.
+TEST_PASS_CLEAN_BG = QColor(146, 208, 80)    # zelená — body ≥ 15 i bez bonusu
+TEST_PASS_BONUS_BG = QColor(255, 217, 102)   # žlutá — body < 15, ale s bonusem ≥ 15
+TEST_FAIL_BG = QColor(204, 70, 70)           # červená — nesplnil ani s bonusem
+TEST_PASS_CLEAN_FG = QColor(20, 60, 20)
+TEST_PASS_BONUS_FG = QColor(80, 60, 0)
+TEST_FAIL_FG = QColor(255, 255, 255)
+
+
 # Pozadí pro řádek repetenta (mírná tónace, čitelný i přes ostatní barvy).
 REPETENT_ROW_BG = QColor(255, 220, 180)  # světle lososová
 REPETENT_FG = QColor(50, 25, 0)  # velmi tmavá hnědá, čitelná na lososovém pozadí
