@@ -22,7 +22,11 @@ from PySide6.QtWidgets import (
 
 from softwaretestingklasifikator import __version__
 from softwaretestingklasifikator.config import DATE_FORMAT_PY, SUBJECT_CODE
-from softwaretestingklasifikator.domain.models import YearData
+from softwaretestingklasifikator.domain.models import (
+    POKUS_RADNY,
+    BonusBreakdown,
+    YearData,
+)
 from softwaretestingklasifikator.domain.stats import (
     compute_stats,
     previous_years_os_cisla,
@@ -112,6 +116,23 @@ class MainWindow(QMainWindow):
         self.action_show_finished.toggled.connect(self._apply_row_visibility)
         toolbar.addAction(self.action_show_finished)
 
+        toolbar.addSeparator()
+
+        self.action_reset_year = QAction("♻ Vynulovat hodnocení", self)
+        self.action_reset_year.setToolTip(
+            "Smaže body, bonusy, docházku a meta u všech studentů v aktuálním "
+            "ročníku — seznam studentů zůstane zachován."
+        )
+        self.action_reset_year.triggered.connect(self._reset_year_grades)
+        toolbar.addAction(self.action_reset_year)
+
+        self.action_delete_year = QAction("🗑 Smazat ročník", self)
+        self.action_delete_year.setToolTip(
+            "Úplně smaže aktuální ročník (JSON soubor i ze seznamu)."
+        )
+        self.action_delete_year.triggered.connect(self._delete_year)
+        toolbar.addAction(self.action_delete_year)
+
         # --- Central: studentská tabulka -----------------------------
         self.table = QTableView()
         self.table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
@@ -196,17 +217,15 @@ class MainWindow(QMainWindow):
             self.model.set_students([])
             self.detail.set_student(None)
             self.stats_panel.set_stats(compute_stats(YearData(year=0)), deadlines=None)
-            self.action_export.setEnabled(False)
-            self.action_import.setEnabled(False)
-            self.action_edit_year.setEnabled(False)
-            self.action_save.setEnabled(False)
-            self.action_delete_student.setEnabled(False)
+            for a in (self.action_export, self.action_import, self.action_edit_year,
+                      self.action_save, self.action_delete_student,
+                      self.action_reset_year, self.action_delete_year):
+                a.setEnabled(False)
             return
-        self.action_export.setEnabled(True)
-        self.action_import.setEnabled(True)
-        self.action_edit_year.setEnabled(True)
-        self.action_save.setEnabled(True)
-        self.action_delete_student.setEnabled(True)
+        for a in (self.action_export, self.action_import, self.action_edit_year,
+                  self.action_save, self.action_delete_student,
+                  self.action_reset_year, self.action_delete_year):
+            a.setEnabled(True)
         # Set repetent os_cisla *before* set_students, aby tabulka při prvním
         # renderu měla správné podbarvení řádků.
         repetents = previous_years_os_cisla(self.data_dir, data.year)
@@ -303,6 +322,71 @@ class MainWindow(QMainWindow):
         if rows:
             self.model.emit_row_changed(rows[0].row())
         self._schedule_autosave()
+
+    def _reset_year_grades(self) -> None:
+        if self._current_year_data is None:
+            return
+        year = self._current_year_data.year
+        count = len(self._current_year_data.students)
+        if count == 0:
+            QMessageBox.information(self, "Vynulovat hodnocení", f"Ročník {year} nemá žádné studenty.")
+            return
+        confirm = QMessageBox.warning(
+            self,
+            "Vynulovat hodnocení",
+            f"Opravdu vynulovat hodnocení všech {count} studentů v ročníku {year}?\n\n"
+            "Smazána budou: body z testů, body z projektu, bonusy, docházka,\n"
+            "datum odevzdání, stav pokusu, ISTQB, ukončení studia, komentář a\n"
+            "případná známka-override.\n\n"
+            "Seznam studentů (jméno, příjmení, os. číslo, vizualni_id…) zůstává.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        for s in self._current_year_data.students:
+            s.test1 = 0.0
+            s.test2 = 0.0
+            s.projekt = 0.0
+            s.bonus = BonusBreakdown()
+            s.dochazka = False
+            s.datum_odevzdani = None
+            s.pokus = POKUS_RADNY
+            s.ma_istqb_ctfl = False
+            s.ukoncil_studium = False
+            s.komentar = ""
+            s.znamka_override = None
+        self.model.set_students(self._current_year_data.students)
+        self._refresh_stats()
+        self._apply_row_visibility()
+        self._save_now()
+        QMessageBox.information(self, "Hotovo", f"Hodnocení {count} studentů ročníku {year} bylo vynulováno.")
+
+    def _delete_year(self) -> None:
+        if self._current_year_data is None:
+            return
+        year = self._current_year_data.year
+        count = len(self._current_year_data.students)
+        confirm = QMessageBox.critical(
+            self,
+            "Smazat ročník",
+            f"Opravdu úplně smazat ročník {year} ({count} studentů)?\n\n"
+            "Smaže se JSON soubor a ročník zmizí z aplikace.\n"
+            "TUTO AKCI NELZE VRÁTIT ZPĚT.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        from softwaretestingklasifikator.io.storage import year_file
+        path = year_file(self.data_dir, year)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as exc:
+            QMessageBox.critical(self, "Chyba", f"Smazání souboru selhalo:\n{exc}")
+            return
+        self._current_year_data = None
+        self._refresh_year_combo()
 
     def _delete_selected_student(self) -> None:
         rows = self.table.selectionModel().selectedRows()

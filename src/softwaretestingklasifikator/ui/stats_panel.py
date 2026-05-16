@@ -64,7 +64,14 @@ def _make_section_title(text: str) -> QLabel:
     font = QFont()
     font.setBold(True)
     lbl.setFont(font)
-    lbl.setStyleSheet("color: rgba(0,0,0,0.7); padding-top: 8px;")
+    # Bílý text na tmavě modrém banneru — čitelné v light i dark mode docku.
+    lbl.setStyleSheet(
+        "background-color: rgb(60, 90, 130);"
+        "color: white;"
+        "padding: 5px 8px;"
+        "margin-top: 6px;"
+        "border-radius: 2px;"
+    )
     return lbl
 
 

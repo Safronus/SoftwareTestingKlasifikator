@@ -9,6 +9,7 @@ from PySide6.QtGui import QBrush, QColor, QFont
 
 from softwaretestingklasifikator.config import (
     DATE_FORMAT_PY,
+    GATE_PROJEKT,
     GATE_TEST1,
     GATE_TEST2,
     MAX_PROJEKT,
@@ -261,7 +262,13 @@ class StudentTableModel(QAbstractTableModel):
             if key == "projekt_pct":
                 return f"{result.projekt_percent * 100:.1f} %"
             if key == "bonus_total":
-                return _r(student.bonus.total())
+                b = student.bonus
+                total = _r(b.total())
+                if role == Qt.ItemDataRole.EditRole:
+                    return total
+                if total == 0:
+                    return "0"
+                return f"{total:g}  ({b.test1:g} / {b.test2:g} / {b.projekt:g})"
             if key == "dochazka":
                 return ""
             if key == "datum_odevzdani":
@@ -297,6 +304,8 @@ class StudentTableModel(QAbstractTableModel):
                 return QBrush(_test_status_bg(student.test1, result.test1_total, GATE_TEST1))
             if key == "test2":
                 return QBrush(_test_status_bg(student.test2, result.test2_total, GATE_TEST2))
+            if key == "projekt":
+                return QBrush(_test_status_bg(student.projekt, result.projekt_total, GATE_PROJEKT))
             if key == "istqb" and student.ma_istqb_ctfl:
                 return QBrush(ISTQB_BG)
             # Repetent: jen ne-stavové sloupce dostávají lososové pozadí.
@@ -320,6 +329,8 @@ class StudentTableModel(QAbstractTableModel):
                 return QBrush(_test_status_fg(student.test1, result.test1_total, GATE_TEST1))
             if key == "test2":
                 return QBrush(_test_status_fg(student.test2, result.test2_total, GATE_TEST2))
+            if key == "projekt":
+                return QBrush(_test_status_fg(student.projekt, result.projekt_total, GATE_PROJEKT))
             if key == "istqb" and student.ma_istqb_ctfl:
                 return QBrush(ISTQB_FG)
             # Na repetent (lososové) pozadí ne-stavové sloupce dostávají tmavý text.
@@ -364,6 +375,22 @@ class StudentTableModel(QAbstractTableModel):
                 if total >= gate:
                     return f"Splněno s bonusem ({pure:g} + bonus → {total:g} ≥ {gate:g})."
                 return f"Nesplněno ({pure:g} + bonus → {total:g} < {gate:g})."
+            if key == "projekt":
+                pure = student.projekt
+                total = result.projekt_total
+                if pure >= GATE_PROJEKT:
+                    return f"Splněno čistě ({pure:g} ≥ {GATE_PROJEKT:g})."
+                if total >= GATE_PROJEKT:
+                    return f"Splněno s bonusem ({pure:g} + bonus → {total:g} ≥ {GATE_PROJEKT:g})."
+                return f"Nesplněno ({pure:g} + bonus → {total:g} < {GATE_PROJEKT:g})."
+            if key == "bonus_total":
+                b = student.bonus
+                return (
+                    f"Bonus celkem: {b.total():g}\n"
+                    f"  → Test 1: {b.test1:g}\n"
+                    f"  → Test 2: {b.test2:g}\n"
+                    f"  → Projekt: {b.projekt:g}"
+                )
             if key == "repetent" and repetent:
                 return "Repetent — os. číslo bylo evidováno v některém předchozím roce."
             if key == "rank" and rank:
