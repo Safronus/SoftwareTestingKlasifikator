@@ -150,6 +150,30 @@ class MainWindow(QMainWindow):
         self.table.setSelectionMode(QTableView.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.setSortingEnabled(True)
+        # ScrollPerItem snižuje počet paint eventů na trackpadu (vs. per-pixel
+        # smooth scroll, který triggeruje paint na každý pixel).
+        self.table.setVerticalScrollMode(QTableView.ScrollMode.ScrollPerItem)
+        self.table.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerItem)
+        # Stylesheet pro checkboxy ve sloupcích Docházka / CTFL / Ukončil,
+        # ať jsou viditelné i na světlém pozadí.
+        self.table.setStyleSheet(
+            """
+            QTableView::indicator {
+                width: 16px;
+                height: 16px;
+                border: 2px solid #4A5868;
+                border-radius: 3px;
+                background-color: #FFFFFF;
+            }
+            QTableView::indicator:checked {
+                background-color: #5DC97A;
+                border-color: #2D8B40;
+            }
+            QTableView::indicator:hover {
+                border-color: #2D8B40;
+            }
+            """
+        )
         header = self.table.horizontalHeader()
         # Interactive (uživatel si může roztáhnout) + last section (Komentář)
         # vyplní zbytek. Důležité kvůli scroll-performance: ResizeToContents

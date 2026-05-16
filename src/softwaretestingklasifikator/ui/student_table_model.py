@@ -96,6 +96,10 @@ def _r(v: float) -> float:
     return round(float(v), POINTS_DECIMALS)
 
 
+# Sentinel pro memoize — None je legitimní cached hodnota.
+_MISSING = object()
+
+
 class StudentTableModel(QAbstractTableModel):
     studentChanged = Signal(int)  # row index
 
@@ -108,6 +112,19 @@ class StudentTableModel(QAbstractTableModel):
         # emit_row_changed. Bez ní by se evaluate() volalo pro každou
         # buňku × roli (~5000+ volání na refresh) a scroll znatelně sekal.
         self._eval_cache: dict[int, GradeResult] = {}
+        # Memoizace data() — klíč (row, col, int(role)), hodnota je výsledek
+        # _compute_data. Při scrollu Qt opakovaně volá data() pro každou
+        # viditelnou buňku × ~5 rolí; cache to redukuje na dict lookup.
+        self._data_cache: dict[tuple[int, int, int], object] = {}
+
+    def _invalidate_data_cache(self, row: int | None = None) -> None:
+        if row is None:
+            self._data_cache.clear()
+            return
+        # Smaže jen entries pro daný řádek.
+        keys = [k for k in self._data_cache if k[0] == row]
+        for k in keys:
+            del self._data_cache[k]
 
     def _eval(self, row: int, student: Student) -> GradeResult:
         cached = self._eval_cache.get(row)
@@ -126,6 +143,7 @@ class StudentTableModel(QAbstractTableModel):
         self._students = students
         self._top_ranks = {}
         self._eval_cache.clear()
+        self._invalidate_data_cache()
         self.endResetModel()
 
     def student_at(self, row: int) -> Student | None:
@@ -137,6 +155,7 @@ class StudentTableModel(QAbstractTableModel):
         self.beginResetModel()
         self._repetent_os_cisla = set(os_cisla)
         self._eval_cache.clear()
+        self._invalidate_data_cache()
         self.endResetModel()
 
     def repetent_os_cisla(self) -> set[str]:
@@ -147,6 +166,7 @@ class StudentTableModel(QAbstractTableModel):
 
     def set_top_ranks(self, ranks: dict[int, int]) -> None:
         self._top_ranks = dict(ranks)
+        self._invalidate_data_cache()
         if self._students:
             top = self.index(0, 0)
             bottom = self.index(self.rowCount() - 1, self.columnCount() - 1)
@@ -158,6 +178,7 @@ class StudentTableModel(QAbstractTableModel):
     def emit_row_changed(self, row: int) -> None:
         if 0 <= row < len(self._students):
             self._eval_cache.pop(row, None)
+            self._invalidate_data_cache(row)
             top = self.index(row, 0)
             bottom = self.index(row, self.columnCount() - 1)
             self.dataChanged.emit(
@@ -176,6 +197,7 @@ class StudentTableModel(QAbstractTableModel):
         self.beginInsertRows(QModelIndex(), row, row)
         self._students.append(student)
         self._eval_cache.clear()
+        self._invalidate_data_cache()
         self.endInsertRows()
         self.studentChanged.emit(row)
 
@@ -185,6 +207,7 @@ class StudentTableModel(QAbstractTableModel):
         self.beginRemoveRows(QModelIndex(), row, row)
         self._students.pop(row)
         self._eval_cache.clear()
+        self._invalidate_data_cache()
         self.endRemoveRows()
 
     def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
@@ -234,6 +257,7 @@ class StudentTableModel(QAbstractTableModel):
         self._students.sort(key=keyfn, reverse=(order == Qt.SortOrder.DescendingOrder))
         self._eval_cache.clear()
         self._top_ranks = {}
+        self._invalidate_data_cache()
         self.endResetModel()
 
     # ---- Qt API ----
@@ -282,6 +306,20 @@ class StudentTableModel(QAbstractTableModel):
         return base
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole):
+        # Memoize: každý paint event volá data() pro každou viditelnou buňku
+        # × 5 rolí. Bez cache se každé volání proženje plnou logikou
+        # _compute_data (větve, instanciace QBrush, lookupy v setech…).
+        if not index.isValid():
+            return None
+        cache_key = (index.row(), index.column(), int(role))
+        cached = self._data_cache.get(cache_key, _MISSING)
+        if cached is not _MISSING:
+            return cached
+        value = self._compute_data(index, role)
+        self._data_cache[cache_key] = value
+        return value
+
+    def _compute_data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return None
         student = self._students[index.row()]
