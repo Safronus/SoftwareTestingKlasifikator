@@ -23,6 +23,7 @@ COLUMNS: tuple[tuple[str, str, bool], ...] = (
     ("test1", "Test 1", True),
     ("test2", "Test 2", True),
     ("projekt", "Projekt", True),
+    ("projekt_pct", "Projekt %", False),
     ("bonus_total", "Bonus", False),
     ("dochazka", "Docházka", True),
     ("datum_odevzdani", "Odevzdání", True),
@@ -131,6 +132,8 @@ class StudentTableModel(QAbstractTableModel):
                 return _r(student.test2)
             if key == "projekt":
                 return _r(student.projekt)
+            if key == "projekt_pct":
+                return f"{result.projekt_percent * 100:.1f} %"
             if key == "bonus_total":
                 return _r(student.bonus.total())
             if key == "dochazka":
@@ -167,7 +170,7 @@ class StudentTableModel(QAbstractTableModel):
                 )
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
-            if key in ("test1", "test2", "projekt", "bonus_total", "celkem", "pokus"):
+            if key in ("test1", "test2", "projekt", "projekt_pct", "bonus_total", "celkem", "pokus"):
                 return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             if key in ("znamka", "dochazka"):
                 return int(Qt.AlignmentFlag.AlignCenter)

@@ -9,6 +9,7 @@ from softwaretestingklasifikator.config import (
     GATE_TEST1,
     GATE_TEST2,
     GRADE_BANDS,
+    MAX_PROJEKT,
     POINTS_DECIMALS,
 )
 from softwaretestingklasifikator.domain.models import Student
@@ -35,6 +36,7 @@ class GradeResult:
     test1_total: float   # test1 + bonus.test1
     test2_total: float   # test2 + bonus.test2
     projekt_total: float # projekt + bonus.projekt
+    projekt_percent: float  # (projekt + bonus.projekt) / MAX_PROJEKT, 0..1+
     celkem: float        # všechny body + součet bonusů
     gate: GateStatus
     znamka: str          # finální písmeno
@@ -44,6 +46,7 @@ class GradeResult:
             "test1_total": self.test1_total,
             "test2_total": self.test2_total,
             "projekt_total": self.projekt_total,
+            "projekt_percent": self.projekt_percent,
             "celkem": self.celkem,
             "gate": {
                 "test1_ok": self.gate.test1_ok,
@@ -71,6 +74,7 @@ def evaluate(student: Student) -> GradeResult:
     t1 = _r(student.test1 + student.bonus.test1)
     t2 = _r(student.test2 + student.bonus.test2)
     pj = _r(student.projekt + student.bonus.projekt)
+    pj_pct = _r(pj / MAX_PROJEKT) if MAX_PROJEKT else 0.0
     celkem = _r(student.test1 + student.test2 + student.projekt + student.bonus.total())
 
     gate = GateStatus(
@@ -85,6 +89,7 @@ def evaluate(student: Student) -> GradeResult:
         test1_total=t1,
         test2_total=t2,
         projekt_total=pj,
+        projekt_percent=pj_pct,
         celkem=celkem,
         gate=gate,
         znamka=znamka,

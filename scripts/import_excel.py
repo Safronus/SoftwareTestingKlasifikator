@@ -7,16 +7,20 @@ Spuštění:
 Pro každý list (rok) vytvoří `data/<rok>.json`. Skript NIKDY nezapisuje žádná
 osobní data do repa — výstupní složka je v `.gitignore` (`data/`).
 
-Předpoklady o tvaru Excelu (ověřeno proti listům 2023/2024/2025):
+Pevně dané sloupce (stejné napříč všemi listy):
 
     A=Jméno  B=Příjmení  C=Test1  D=Test2  E=Projekt  F=Projekt%
     G/H/I = bonus alokace (Test1/Test2/Projekt)   J=bonus_celkem
-    K=Celkem  L=Známka  M=Datum odevzdání  N=Pokus  O=Ve stagu?  P=Komentář
+    K=Celkem  L=Známka
 
-Pokud původní rozložení v daném listu jiné, skript hlásí varování a řádek
-přeskočí. Docházka v Excelu není; nastavuje se `True` u všech studentů s
-nenulovou klasifikací (jinak by se rekonstruovaná známka rozcházela
-s tím, co je v Excelu).
+Variabilní sloupce (rozložení se mezi listy mění — viz 2023 vs. 2024/2025):
+
+    "Datum odevzdání*", "Pokus", "Komentář", os_cislo (typicky W)
+
+Pozice těchto sloupců se hledá dynamicky podle textu hlavičky v řádku 1.
+
+Docházka v Excelu není; nastavuje se `True` u všech studentů s nenulovou
+klasifikací (jinak by se rekonstruovaná známka rozcházela s Excelem).
 """
 
 from __future__ import annotations
@@ -73,10 +77,61 @@ def _to_pokus(value) -> int:
     return 2 if n >= 2 else 1
 
 
+# Klíče vyhledávání hlaviček (case-insensitive, prefix match).
+_HEADER_KEYS: dict[str, tuple[str, ...]] = {
+    "datum_odevzdani": ("datum odevzd", "datum odevzdání"),
+    "pokus": ("pokus",),
+    "komentar": ("komentář", "komentar"),
+}
+
+
+def _detect_columns(ws) -> dict[str, int | None]:
+    """Najde sloupce podle textu hlavičky (řádek 1) — vrací 1-based indexy.
+
+    Také se pokusí najít sloupec s os. čísly: postupně zkouší obvyklé pozice
+    (V, W, X) a vybírá první, jehož hodnoty v prvních datových řádcích vypadají
+    jako osobní čísla (formát [A-Z]\\d+).
+    """
+    found: dict[str, int | None] = {"datum_odevzdani": None, "pokus": None, "komentar": None}
+    max_col = min(ws.max_column, 40)
+    for c in range(1, max_col + 1):
+        h = ws.cell(1, c).value
+        if not h:
+            continue
+        h_norm = str(h).strip().lower()
+        for key, prefixes in _HEADER_KEYS.items():
+            if found[key] is not None:
+                continue
+            if any(h_norm.startswith(p) for p in prefixes):
+                found[key] = c
+
+    # Detekce sloupce os_cisla — bez hlavičky, hledáme hodnoty typu "A12345".
+    import re
+
+    pat = re.compile(r"^[A-Za-z]\d{4,}$")
+    os_col: int | None = None
+    for c in range(15, min(ws.max_column, 30) + 1):
+        hits = 0
+        for r in range(3, min(ws.max_row, 30) + 1):
+            v = ws.cell(r, c).value
+            if isinstance(v, str) and pat.match(v.strip()):
+                hits += 1
+        if hits >= 3:
+            os_col = c
+            break
+    found["os_cislo"] = os_col
+    return found
+
+
 def import_sheet(ws, year: int, verbose: bool = False) -> YearData:
     students: list[Student] = []
     skipped = 0
     mismatches = 0
+
+    cols = _detect_columns(ws)
+    if verbose:
+        readable = {k: openpyxl.utils.get_column_letter(v) if v else None for k, v in cols.items()}
+        print(f"  Detekované sloupce: {readable}")
 
     for r in range(3, ws.max_row + 1):
         jmeno = ws.cell(r, 1).value
@@ -86,7 +141,6 @@ def import_sheet(ws, year: int, verbose: bool = False) -> YearData:
 
         excel_known_grade = ws.cell(r, 12).value
         if not excel_known_grade or not str(excel_known_grade).strip():
-            # Student bez vyhodnocení v Excelu — nepatří do historie.
             skipped += 1
             continue
 
@@ -96,16 +150,18 @@ def import_sheet(ws, year: int, verbose: bool = False) -> YearData:
         bonus_t1 = _to_float(ws.cell(r, 7).value)
         bonus_t2 = _to_float(ws.cell(r, 8).value)
         bonus_pj = _to_float(ws.cell(r, 9).value)
-        datum = _to_date(ws.cell(r, 13).value)
-        pokus = _to_pokus(ws.cell(r, 14).value)
-        komentar = ws.cell(r, 16).value or ""
 
-        # Heuristika docházky: pokud má v Excelu jinou než F známku, předpokládáme
-        # splněnou docházku (jinak bychom rekonstruovanou známku rozhodili).
+        datum = _to_date(ws.cell(r, cols["datum_odevzdani"]).value) if cols["datum_odevzdani"] else None
+        pokus = _to_pokus(ws.cell(r, cols["pokus"]).value) if cols["pokus"] else 1
+        komentar_raw = ws.cell(r, cols["komentar"]).value if cols["komentar"] else ""
+        komentar = str(komentar_raw).strip() if komentar_raw else ""
+        os_cislo_raw = ws.cell(r, cols["os_cislo"]).value if cols["os_cislo"] else ""
+        os_cislo = str(os_cislo_raw).strip() if os_cislo_raw else ""
+
         dochazka = bool(excel_known_grade) and str(excel_known_grade).strip() != "F"
 
         student = Student(
-            os_cislo="",  # v Excelu chybí
+            os_cislo=os_cislo,
             jmeno=str(jmeno or "").strip(),
             prijmeni=str(prijmeni or "").strip(),
             test1=test1,
@@ -115,11 +171,10 @@ def import_sheet(ws, year: int, verbose: bool = False) -> YearData:
             dochazka=dochazka,
             datum_odevzdani=datum,
             pokus=pokus,
-            komentar=str(komentar).strip() if komentar else "",
+            komentar=komentar,
         )
 
-        # Pojistka konzistence: ulož i Excel-grade jako override, kdyby naše logika
-        # vrátila něco jiného (např. když Excel měl jiný gating pro daný rok).
+        # Pojistka konzistence
         result = evaluate(student)
         if excel_known_grade and str(excel_known_grade).strip() != result.znamka:
             student.znamka_override = str(excel_known_grade).strip()
@@ -163,7 +218,8 @@ def main(argv: list[str] | None = None) -> int:
         data = import_sheet(ws, year, verbose=args.verbose)
         target = save_year(args.out, data)
         print(f"  → {target} ({len(data.students)} studentů)")
-        # Krátký souhrn rozložení známek pro kontrolu
+        with_os = sum(1 for s in data.students if s.os_cislo)
+        print(f"  {with_os} z {len(data.students)} studentů má vyplněno os. číslo")
         dist: dict[str, int] = {}
         for s in data.students:
             g = s.znamka_override or evaluate(s).znamka

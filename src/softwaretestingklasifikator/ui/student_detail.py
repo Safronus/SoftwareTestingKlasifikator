@@ -261,13 +261,16 @@ class StudentDetailPanel(QWidget):
             return
         result = evaluate(self._student)
         gate_parts = []
-        gate_parts.append(("Test 1", result.test1_total, GATE_TEST1, result.gate.test1_ok))
-        gate_parts.append(("Test 2", result.test2_total, GATE_TEST2, result.gate.test2_ok))
-        gate_parts.append(("Projekt", result.projekt_total, GATE_PROJEKT, result.gate.projekt_ok))
+        gate_parts.append(("Test 1", result.test1_total, GATE_TEST1, result.gate.test1_ok, ""))
+        gate_parts.append(("Test 2", result.test2_total, GATE_TEST2, result.gate.test2_ok, ""))
+        gate_parts.append((
+            "Projekt", result.projekt_total, GATE_PROJEKT, result.gate.projekt_ok,
+            f" ({result.projekt_percent * 100:.1f} %)",
+        ))
         rows = []
-        for name, total, gate, ok in gate_parts:
+        for name, total, gate, ok, suffix in gate_parts:
             badge = "✓" if ok else "✗"
-            rows.append(f"<b>{name}:</b> {total:g} / brána {gate:g} {badge}")
+            rows.append(f"<b>{name}:</b> {total:g} / brána {gate:g}{suffix} {badge}")
         doch_badge = "✓" if result.gate.dochazka_ok else "✗"
         rows.append(f"<b>Docházka:</b> {'splněno' if self._student.dochazka else 'nesplněno'} {doch_badge}")
         rows.append(f"<b>Celkem:</b> {result.celkem:g}    <b>Známka:</b> <span style='font-size:14pt'>{result.znamka}</span>")
