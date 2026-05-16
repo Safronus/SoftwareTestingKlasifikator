@@ -132,7 +132,7 @@ class StatsPanel(QWidget):
 
         chart = GradeChart()
         chart.set_counts(stats.grades)
-        layout.addWidget(chart)
+        layout.addWidget(chart, 0, Qt.AlignmentFlag.AlignHCenter)
 
         # Splnilo / Nesplnilo / Celkem
         layout.addWidget(_make_section_title("Splnilo / Nesplnilo"))

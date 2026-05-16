@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "softwaretestingklasifikator"
-version = "0.4.3"
+version = "0.4.4"
 description = "Klasifikační aplikace pro předmět AP4TS (Testování SW) — UTB FAI."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,7 +29,7 @@ klasifikator = "softwaretestingklasifikator.app:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-softwaretestingklasifikator = ["py.typed"]
+softwaretestingklasifikator = ["py.typed", "resources/*.png"]
 
 [tool.ruff]
 line-length = 100

@@ -17,27 +17,30 @@ class GradeChart(QWidget):
     počet, pod ním písmeno známky. Osa Y popisek nemá.
     """
 
-    LABEL_TOP_H = 12     # výška textu pro počet (těsně nad barem)
-    LABEL_BOTTOM_H = 14  # výška textu pro písmeno (pod barem)
-    MARGIN = 3           # vnější margin
+    LABEL_TOP_H = 11     # výška textu pro počet (těsně nad barem)
+    LABEL_BOTTOM_H = 13  # výška textu pro písmeno (pod barem)
+    MARGIN = 2           # vnější margin
     MIN_BAR_HEIGHT = 2   # vždy alespoň pár pixelů, ať jdou nulové bary znát
+    FIXED_WIDTH = 170    # pevná šířka grafu (cca polovina dosavadní)
+    FIXED_HEIGHT = 80    # pevná výška grafu
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._counts: dict[str, int] = {g: 0 for g in GRADE_ORDER}
-        self.setMinimumHeight(90)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        # Pevně dané malé rozměry — graf se nemá rozlézat a zabírat půl panelu.
+        self.setFixedSize(self.FIXED_WIDTH, self.FIXED_HEIGHT)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
     def set_counts(self, counts: dict[str, int]) -> None:
         self._counts = {g: int(counts.get(g, 0)) for g in GRADE_ORDER}
         self.update()
 
     def sizeHint(self):  # noqa: N802
-        return self.minimumSizeHint().expandedTo(self.size())
+        from PySide6.QtCore import QSize
+        return QSize(self.FIXED_WIDTH, self.FIXED_HEIGHT)
 
     def minimumSizeHint(self):  # noqa: N802
-        from PySide6.QtCore import QSize
-        return QSize(160, 90)
+        return self.sizeHint()
 
     def paintEvent(self, event) -> None:  # noqa: D401, N802
         painter = QPainter(self)

@@ -136,6 +136,7 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.4.4** — Graf známek zmenšen na fixních **170 × 80 px** (předtím se roztahoval na šířku panelu) a vycentrován. Statistický dock zúžen z 280 na 210 px minima. Přidána **ikona aplikace** v macOS stylu — zaoblený modrý badge s motivem sloupcového grafu A→F + popisek „AP4TS" (1024 × 1024 PNG, generovaná skriptem `tools/generate_icon.py`). Ikona se nastavuje na `QApplication` a `QMainWindow` při startu.
 **0.4.3** — Sloupcový graf známek je kompaktnější (cca poloviční výška, tenčí sloupečky), pořadí **A → F** zleva, a počet je teď napsán **těsně nad horní hranou** každého sloupečku.
 **0.4.2** — **Plynulý scroll**: tabulka už nepoužívá `ResizeToContents` (přepočítával šířky sloupců při každém scrollu). Nyní `Interactive` + jednorázový `resizeColumnsToContents()` po načtení ročníku; uživatel si může sloupce ručně roztáhnout, Komentář vyplní zbytek. Ve statistickém docku nový **sloupcový graf** rozložení známek (A–F) — výška sloupce podle počtu, číslo nad sloupcem.
 **0.4.1** — Polish editovatelnosti. Sloupce **Os. číslo, Příjmení, Jméno, Pokus** jsou nyní needitovatelné (chrání data ze STAGu / odvozený stav). Sloupec **Bonus** je naopak editovatelný — zadáš jen celkový bonus, systém ho automaticky rozdělí do T1/T2/Projektu (priorita: doplnit bránu, pak maximalizace známky). Sloupce **CTFL a Ukončil** zobrazují vedle checkboxu textové „Ano/Ne", aby byl stav vidět i v případě špatně rozlišitelného checkboxu. Datum a checkboxové sloupce **zarovnány na střed**.

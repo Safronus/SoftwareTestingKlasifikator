@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 
 from PySide6.QtCore import QModelIndex, Qt, QTimer
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QComboBox,
     QDockWidget,
@@ -56,6 +56,9 @@ class MainWindow(QMainWindow):
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
         self.setWindowTitle(f"{SUBJECT_CODE} Klasifikátor v{__version__}")
+        icon_path = Path(__file__).resolve().parent.parent / "resources" / "icon.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
         self.resize(1500, 800)
 
         self._current_year_data: YearData | None = None
@@ -174,7 +177,7 @@ class MainWindow(QMainWindow):
         stats_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         stats_dock.setWidget(self.stats_panel)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, stats_dock)
-        stats_dock.setMinimumWidth(280)
+        stats_dock.setMinimumWidth(210)
 
         # --- Status bar --------------------------------------------
         self.setStatusBar(QStatusBar())
