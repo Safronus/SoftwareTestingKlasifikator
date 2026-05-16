@@ -139,13 +139,18 @@ class MainWindow(QMainWindow):
         self.table.setSelectionMode(QTableView.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.setSortingEnabled(True)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header = self.table.horizontalHeader()
+        # stretchLastSection musí být OFF kvůli per-column ResizeMode.
+        header.setStretchLastSection(False)
         self.table.verticalHeader().setDefaultSectionSize(26)
         self.model = StudentTableModel(parent=self)
         self.table.setModel(self.model)
-        for i in range(self.model.columnCount()):
-            self.table.setColumnWidth(i, self.model.column_default_width(i))
+        # Sloupce se přizpůsobí obsahu, poslední (Komentář) zabere zbytek.
+        for i, col in enumerate(COLUMNS):
+            if col[0] == "komentar":
+                header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+            else:
+                header.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
         self.model.studentChanged.connect(self._schedule_autosave)
         self.model.studentChanged.connect(lambda *_: self._refresh_stats())
         self.model.studentChanged.connect(lambda *_: self._apply_row_visibility())
@@ -190,12 +195,23 @@ class MainWindow(QMainWindow):
         self.year_combo.addItems([str(y) for y in years])
         self.year_combo.blockSignals(False)
 
-        if years:
-            self.year_combo.setCurrentIndex(len(years) - 1)  # nejnovější
-            self._load_year(years[-1])
-        else:
+        if not years:
             self._set_year_data(None)
             self._update_status("Zatím žádný ročník — vytvoř ho tlačítkem ➕.")
+            return
+
+        # Vybereme nejnovější ročník, který má nějaké studenty.
+        # Pokud jsou všechny ročníky prázdné, použijeme nejnovější.
+        chosen = years[-1]
+        for year in reversed(years):
+            data = load_year(self.data_dir, year)
+            if data.students:
+                chosen = year
+                break
+        idx = self.year_combo.findText(str(chosen))
+        if idx >= 0:
+            self.year_combo.setCurrentIndex(idx)
+        self._load_year(chosen)
 
     def _on_year_changed(self, year_str: str) -> None:
         if not year_str:

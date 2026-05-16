@@ -64,6 +64,11 @@ REPETENT_ROW_BG = QColor(255, 220, 180)  # světle lososová
 REPETENT_FG = QColor(50, 25, 0)  # velmi tmavá hnědá, čitelná na lososovém pozadí
 
 
+# Ukončené studium — šedé pozadí přebíjí všechny stavové barvy.
+UKONCIL_BG = QColor(200, 200, 200)
+UKONCIL_FG = QColor(110, 110, 110)
+
+
 # Jemné tinty pozadí pro skupiny sloupců (jako v Excelu).
 # Aplikuje se na buňky, které nemají vlastní stavovou barvu (známka, docházka,
 # pokus, …). Záměrně velmi světlé, aby byly text a kontrastní stavy čitelné.

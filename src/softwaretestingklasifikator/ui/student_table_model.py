@@ -44,6 +44,8 @@ from softwaretestingklasifikator.ui.theme import (
     TEST_PASS_CLEAN_FG,
     TOP_RANK_BG,
     TOP_RANK_FG,
+    UKONCIL_BG,
+    UKONCIL_FG,
     projekt_percent_bg,
 )
 
@@ -289,6 +291,9 @@ class StudentTableModel(QAbstractTableModel):
                 return student.komentar
 
         if role == Qt.ItemDataRole.BackgroundRole:
+            # Ukončené studium: šedá přebíjí všechny ostatní barvy.
+            if student.ukoncil_studium:
+                return QBrush(UKONCIL_BG)
             # Stavové sloupce mají přednost před vším včetně repetenta.
             if key == "rank" and rank:
                 return QBrush(TOP_RANK_BG.get(rank, TOP_RANK_BG[5]))
@@ -316,6 +321,9 @@ class StudentTableModel(QAbstractTableModel):
                 return QBrush(GROUP_BG[group])
 
         if role == Qt.ItemDataRole.ForegroundRole:
+            # Ukončené studium: šedý text přebíjí všechny ostatní.
+            if student.ukoncil_studium:
+                return QBrush(UKONCIL_FG)
             # Stavové FG mají přednost.
             if key == "rank" and rank:
                 return QBrush(TOP_RANK_FG)
