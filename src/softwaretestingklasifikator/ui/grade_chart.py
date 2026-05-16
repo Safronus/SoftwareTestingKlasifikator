@@ -17,16 +17,16 @@ class GradeChart(QWidget):
     počet, pod ním písmeno známky. Osa Y popisek nemá.
     """
 
-    LABEL_TOP_H = 16     # výška místa pro počet (nad barem)
-    LABEL_BOTTOM_H = 18  # výška místa pro písmeno (pod barem)
-    MARGIN = 6           # vnější margin
+    LABEL_TOP_H = 12     # výška textu pro počet (těsně nad barem)
+    LABEL_BOTTOM_H = 14  # výška textu pro písmeno (pod barem)
+    MARGIN = 3           # vnější margin
     MIN_BAR_HEIGHT = 2   # vždy alespoň pár pixelů, ať jdou nulové bary znát
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._counts: dict[str, int] = {g: 0 for g in GRADE_ORDER}
-        self.setMinimumHeight(160)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.setMinimumHeight(90)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
     def set_counts(self, counts: dict[str, int]) -> None:
         self._counts = {g: int(counts.get(g, 0)) for g in GRADE_ORDER}
@@ -37,7 +37,7 @@ class GradeChart(QWidget):
 
     def minimumSizeHint(self):  # noqa: N802
         from PySide6.QtCore import QSize
-        return QSize(220, 160)
+        return QSize(160, 90)
 
     def paintEvent(self, event) -> None:  # noqa: D401, N802
         painter = QPainter(self)
@@ -48,8 +48,8 @@ class GradeChart(QWidget):
             painter.end()
 
     def _paint(self, painter: QPainter) -> None:
-        # Známky budeme zobrazovat A → F (zleva doprava).
-        grades = list(reversed(GRADE_ORDER))  # GRADE_ORDER má F první
+        # A → F zleva doprava (GRADE_ORDER už je v pořadí A..F).
+        grades = list(GRADE_ORDER)
         n = len(grades)
         if n == 0:
             return
@@ -59,22 +59,23 @@ class GradeChart(QWidget):
         max_count = max(self._counts.values()) if self._counts else 0
         max_count = max(max_count, 1)
 
+        # Pro počet potřebujeme rezervovat top margin (nad nejvyšším barem).
         bar_area_top = self.MARGIN + self.LABEL_TOP_H
         bar_area_bottom = h - self.MARGIN - self.LABEL_BOTTOM_H
         bar_area_h = max(0, bar_area_bottom - bar_area_top)
 
         slot_w = (w - 2 * self.MARGIN) / n
-        bar_w = max(8.0, slot_w * 0.62)
+        bar_w = max(6.0, slot_w * 0.35)  # tenčí sloupečky
 
         count_font = QFont(painter.font())
         count_font.setBold(True)
-        count_font.setPointSize(max(8, count_font.pointSize()))
+        count_font.setPointSize(max(7, count_font.pointSize() - 1))
 
         letter_font = QFont(painter.font())
         letter_font.setBold(True)
-        letter_font.setPointSize(max(9, letter_font.pointSize() + 1))
+        letter_font.setPointSize(max(8, letter_font.pointSize()))
 
-        text_color = QColor(245, 245, 245)  # bílý popisek na typicky tmavém docku
+        text_color = QColor(245, 245, 245)  # světlý text na tmavém docku
 
         for i, grade in enumerate(grades):
             count = self._counts.get(grade, 0)
@@ -95,22 +96,27 @@ class GradeChart(QWidget):
             painter.setPen(QPen(QColor(0, 0, 0, 60)))
             painter.drawRect(rect)
 
-            # Počet nad barem
+            # Počet PŘÍMO nad horní hranou sloupečku.
             painter.setFont(count_font)
             painter.setPen(text_color)
             count_rect = QRect(
-                int(slot_x), self.MARGIN, int(slot_w), self.LABEL_TOP_H
+                int(slot_x),
+                y - self.LABEL_TOP_H,
+                int(slot_w),
+                self.LABEL_TOP_H,
             )
             painter.drawText(
-                count_rect, Qt.AlignmentFlag.AlignCenter, str(count)
+                count_rect,
+                int(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter),
+                str(count),
             )
 
-            # Písmeno pod barem — světlý text, ať je vidět i na tmavém docku.
+            # Písmeno známky pod barem.
             painter.setFont(letter_font)
             painter.setPen(text_color)
             letter_rect = QRect(
                 int(slot_x),
-                bar_area_bottom + 2,
+                bar_area_bottom + 1,
                 int(slot_w),
                 self.LABEL_BOTTOM_H,
             )
