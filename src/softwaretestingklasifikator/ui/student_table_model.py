@@ -66,10 +66,9 @@ def _test_status_fg(pure: float, total: float, gate: float) -> QColor:
     return TEST_FAIL_FG
 
 # (klíč, label, editable, min_width, skupina)
+# První sloupec = osobní číslo. Pořadí / Repetent / CTFL / Ukončil jsou
+# umístěny mezi Známkou a Komentářem.
 COLUMNS: tuple[tuple[str, str, bool, int, str], ...] = (
-    ("rank", "🏆", False, 36, "badge"),
-    ("repetent", "↻", False, 32, "badge"),
-    ("istqb", "ISTQB", True, 56, "badge"),
     ("os_cislo", "Os. číslo", False, 80, "identity"),
     ("prijmeni", "Příjmení", True, 130, "identity"),
     ("jmeno", "Jméno", True, 110, "identity"),
@@ -77,12 +76,16 @@ COLUMNS: tuple[tuple[str, str, bool, int, str], ...] = (
     ("test2", "Test 2", True, 60, "tests"),
     ("projekt", "Projekt", True, 70, "project"),
     ("projekt_pct", "Projekt %", False, 70, "project"),
-    ("bonus_total", "Bonus", False, 60, "bonus"),
+    ("bonus_total", "Bonus", False, 150, "bonus"),
     ("dochazka", "Docházka", True, 70, "meta"),
     ("datum_odevzdani", "Odevzdání", True, 100, "meta"),
     ("pokus", "Pokus", True, 110, "meta"),
     ("celkem", "Celkem", False, 70, "result"),
     ("znamka", "Známka", False, 60, "result"),
+    ("rank", "🏆", False, 36, "badge"),
+    ("repetent", "REP", False, 50, "badge"),
+    ("istqb", "CTFL", True, 60, "badge"),
+    ("ukoncil", "Ukončil", True, 70, "badge"),
     ("komentar", "Komentář", True, 200, "note"),
 )
 
@@ -182,6 +185,55 @@ class StudentTableModel(QAbstractTableModel):
         self._eval_cache.clear()
         self.endRemoveRows()
 
+    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+        if not (0 <= column < len(COLUMNS)):
+            return
+        key_attr = COLUMNS[column][0]
+
+        def keyfn(s: Student):
+            from datetime import date as _date
+            if key_attr == "prijmeni":
+                return (s.prijmeni or "").lower()
+            if key_attr == "jmeno":
+                return (s.jmeno or "").lower()
+            if key_attr == "os_cislo":
+                return s.os_cislo or ""
+            if key_attr == "test1":
+                return s.test1
+            if key_attr == "test2":
+                return s.test2
+            if key_attr == "projekt":
+                return s.projekt
+            if key_attr == "projekt_pct":
+                return s.projekt / MAX_PROJEKT if MAX_PROJEKT else 0.0
+            if key_attr == "bonus_total":
+                return s.bonus.total()
+            if key_attr == "dochazka":
+                return 1 if s.dochazka else 0
+            if key_attr == "datum_odevzdani":
+                return s.datum_odevzdani or _date.min
+            if key_attr == "pokus":
+                return s.pokus
+            if key_attr == "celkem":
+                return evaluate(s).celkem
+            if key_attr == "znamka":
+                return s.znamka_override or evaluate(s).znamka
+            if key_attr == "istqb":
+                return 1 if s.ma_istqb_ctfl else 0
+            if key_attr == "ukoncil":
+                return 1 if s.ukoncil_studium else 0
+            if key_attr == "repetent":
+                return 1 if self.is_repetent(s) else 0
+            if key_attr == "komentar":
+                return (s.komentar or "").lower()
+            return ""
+
+        self.beginResetModel()
+        self._students.sort(key=keyfn, reverse=(order == Qt.SortOrder.DescendingOrder))
+        self._eval_cache.clear()
+        self._top_ranks = {}
+        self.endResetModel()
+
     # ---- Qt API ----
     def rowCount(self, parent: QModelIndex | None = None) -> int:
         if parent is not None and parent.isValid():
@@ -221,7 +273,7 @@ class StudentTableModel(QAbstractTableModel):
             return Qt.ItemFlag.NoItemFlags
         key, _, editable, _, _ = COLUMNS[index.column()]
         base = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
-        if key in ("dochazka", "istqb"):
+        if key in ("dochazka", "istqb", "ukoncil"):
             base |= Qt.ItemFlag.ItemIsUserCheckable
         elif editable:
             base |= Qt.ItemFlag.ItemIsEditable
@@ -241,14 +293,19 @@ class StudentTableModel(QAbstractTableModel):
             return Qt.CheckState.Checked if student.dochazka else Qt.CheckState.Unchecked
         if key == "istqb" and role == Qt.ItemDataRole.CheckStateRole:
             return Qt.CheckState.Checked if student.ma_istqb_ctfl else Qt.CheckState.Unchecked
+        if key == "ukoncil" and role == Qt.ItemDataRole.CheckStateRole:
+            return Qt.CheckState.Checked if student.ukoncil_studium else Qt.CheckState.Unchecked
 
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             if key == "rank":
                 return f"{rank}." if rank else ""
             if key == "repetent":
-                return "↻" if repetent else ""
+                return "REP" if repetent else ""
             if key == "istqb":
-                return "CTFL" if student.ma_istqb_ctfl else ""
+                # Jen checkbox (CheckStateRole nad), žádný textový popisek navíc.
+                return ""
+            if key == "ukoncil":
+                return ""
             if key == "os_cislo":
                 return student.os_cislo
             if key == "jmeno":
@@ -437,6 +494,14 @@ class StudentTableModel(QAbstractTableModel):
             if student.ma_istqb_ctfl == checked:
                 return False
             student.ma_istqb_ctfl = checked
+            self.emit_row_changed(index.row())
+            return True
+
+        if key == "ukoncil" and role == Qt.ItemDataRole.CheckStateRole:
+            checked = Qt.CheckState(value) == Qt.CheckState.Checked
+            if student.ukoncil_studium == checked:
+                return False
+            student.ukoncil_studium = checked
             self.emit_row_changed(index.row())
             return True
 

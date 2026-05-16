@@ -69,8 +69,8 @@ src/softwaretestingklasifikator/
 └── ui/
     ├── main_window.py         # QMainWindow + toolbar + autosave
     ├── student_table_model.py # QAbstractTableModel s počítanými sloupci a barvami
-    ├── student_detail.py      # detail panel pro editaci jednoho studenta
     ├── stats_panel.py         # dock se statistikou ročníku
+    ├── bonus_dialog.py        # modální dialog pro nastavení bonusu + auto-rozdělit
     ├── delegates.py           # combobox delegate pro sloupec Pokus
     ├── theme.py               # paleta barev (A→F, docházka, pokus, repetenti, top-5)
     └── year_config_dialog.py  # založení / editace ročníku a deadlinů
@@ -136,6 +136,7 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.4.0** — UI restrukturace. Pravý dock „Detail studenta" odstraněn — vše se edituje inline v tabulce. Pro bonusy přidána toolbar akce **„💎 Bonus…"** (otevře dialog se třemi spinboxy + auto-rozdělit). Nový sloupec **„Ukončil"** (checkbox) — náhrada za checkbox z detail panelu. Symbol repetenta v buňce změněn z `↻` na **„REP"** (čitelnější). Hlavička sloupce ISTQB sjednocena na **„CTFL"**. Známky **A–E** mají nyní gradient zelená → bledě žlutá; **červená je vyhrazena jen pro F**. Sloupce **Pořadí / Repetent / CTFL** přesunuty za **Známku**; první sloupec je **Os. číslo**. Tabulka se po načtení ročníku řadí podle **Příjmení**; uživatel může klikat hlavičky a řadit po libovolném sloupci. Sloupce mají dynamickou šířku podle obsahu, Komentář zabere zbytek.
 **0.3.2** — Po startu se vybere nejnovější ročník, který má studenty (přeskočí prázdné). Ukončení studenti zobrazení přes toggle „Zobrazit ukončené" mají všechna pole **šedou barvou** přebíjející ostatní stavové styly — vizuálně okamžitě odlišitelné. Šířka sloupců se nyní přizpůsobuje obsahu (`ResizeToContents`), poslední sloupec **Komentář** zabere zbytek (`Stretch`) — řeší obstříhnutí např. v sloupci Bonus.
 **0.3.1** — Stejné stavové barvy aplikovány na sloupec **Projekt** (zelená / žlutá / červená). Sloupec **Bonus** zobrazuje rozdělení v závorce — `celkem (T1/T2/Projekt)`. Nadpisy sekcí v statistickém docku mají bílý text na tmavě modrém banneru — čitelné v light i dark mode. Nové toolbar akce **„♻ Vynulovat hodnocení"** (vynuluje body/bonusy/docházku, zachová studenty) a **„🗑 Smazat ročník"** (úplně odstraní JSON ročníku), obě s konfirmací.
 **0.3.0** — Testy v tabulce mají stavové barvy: zelená (≥ 15 čistě), žlutá (≥ 15 s bonusem), červená (nesplněno). Statistika ukazuje kolik studentů „splnilo díky bonusu" jako kontextový údaj v sekci Splnilo. Nový stav studenta **„zakončil studium"** — checkbox v detailu skryje studenta z tabulky, toolbar má toggle „Zobrazit ukončené" pro práci s historií. Stavové sloupce (známka, pokus, docházka, projekt %, testy) mají nyní přednost nad barvou řádku pro repetenty.

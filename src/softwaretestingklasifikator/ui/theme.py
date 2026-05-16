@@ -11,21 +11,21 @@ from softwaretestingklasifikator.domain.models import (
     POKUS_RADNY,
 )
 
-# Gradient od zelené (A) přes žlutou (D) k červené (F).
+# Gradient A–E od zelené přes žluto-zelenou po bledě žlutou; jen F je červená.
 GRADE_BG: dict[str, QColor] = {
-    "A": QColor(146, 208, 80),   # zelená
-    "B": QColor(196, 220, 92),   # žluto-zelená
-    "C": QColor(255, 217, 102),  # zlatá
-    "D": QColor(246, 178, 107),  # tmavě žlutá / světle oranžová
-    "E": QColor(231, 117, 90),   # červeno-oranžová
-    "F": QColor(204, 70, 70),    # červená
+    "A": QColor(130, 200, 80),    # zelená
+    "B": QColor(180, 215, 85),    # žluto-zelená
+    "C": QColor(220, 220, 90),    # zeleno-žlutá
+    "D": QColor(245, 220, 95),    # žlutá
+    "E": QColor(250, 215, 110),   # bledě žlutá
+    "F": QColor(204, 70, 70),     # červená
 }
 GRADE_FG: dict[str, QColor] = {
     "A": QColor(20, 60, 20),
     "B": QColor(40, 60, 20),
-    "C": QColor(80, 60, 0),
-    "D": QColor(90, 50, 10),
-    "E": QColor(255, 255, 255),
+    "C": QColor(60, 60, 10),
+    "D": QColor(80, 60, 10),
+    "E": QColor(90, 60, 20),
     "F": QColor(255, 255, 255),
 }
 

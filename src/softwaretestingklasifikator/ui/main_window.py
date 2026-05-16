@@ -40,9 +40,9 @@ from softwaretestingklasifikator.io.storage import (
     load_year,
     save_year,
 )
+from softwaretestingklasifikator.ui.bonus_dialog import BonusDialog
 from softwaretestingklasifikator.ui.delegates import PokusDelegate
 from softwaretestingklasifikator.ui.stats_panel import StatsPanel
-from softwaretestingklasifikator.ui.student_detail import StudentDetailPanel
 from softwaretestingklasifikator.ui.student_table_model import COLUMNS, StudentTableModel
 from softwaretestingklasifikator.ui.year_config_dialog import YearConfigDialog
 
@@ -110,6 +110,14 @@ class MainWindow(QMainWindow):
         self.action_delete_student.triggered.connect(self._delete_selected_student)
         toolbar.addAction(self.action_delete_student)
 
+        self.action_bonus = QAction("💎 Bonus…", self)
+        self.action_bonus.setToolTip(
+            "Nastavit bonusové body pro vybraného studenta (T1 / T2 / Projekt) "
+            "s možností auto-rozdělit."
+        )
+        self.action_bonus.triggered.connect(self._edit_bonus_for_selected)
+        toolbar.addAction(self.action_bonus)
+
         self.action_show_finished = QAction("👁 Zobrazit ukončené", self)
         self.action_show_finished.setCheckable(True)
         self.action_show_finished.setChecked(False)
@@ -154,21 +162,14 @@ class MainWindow(QMainWindow):
         self.model.studentChanged.connect(self._schedule_autosave)
         self.model.studentChanged.connect(lambda *_: self._refresh_stats())
         self.model.studentChanged.connect(lambda *_: self._apply_row_visibility())
+        self.model.modelReset.connect(self._refresh_stats)
+        self.model.modelReset.connect(self._apply_row_visibility)
         self.setCentralWidget(self.table)
 
         # ComboBox delegate pro sloupec „Pokus"
         pokus_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "pokus"), None)
         if pokus_col is not None:
             self.table.setItemDelegateForColumn(pokus_col, PokusDelegate(self.table))
-
-        # --- Right dock: detail -------------------------------------
-        self.detail = StudentDetailPanel()
-        self.detail.studentEdited.connect(self._on_detail_edited)
-        detail_dock = QDockWidget("Detail studenta", self)
-        detail_dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
-        detail_dock.setWidget(self.detail)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, detail_dock)
-        detail_dock.setMinimumWidth(360)
 
         # --- Left dock: statistika ---------------------------------
         self.stats_panel = StatsPanel()
@@ -177,8 +178,6 @@ class MainWindow(QMainWindow):
         stats_dock.setWidget(self.stats_panel)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, stats_dock)
         stats_dock.setMinimumWidth(280)
-
-        self.table.selectionModel().selectionChanged.connect(self._on_selection_changed)
 
         # --- Status bar --------------------------------------------
         self.setStatusBar(QStatusBar())
@@ -231,15 +230,14 @@ class MainWindow(QMainWindow):
         if data is None:
             self.model.set_repetent_os_cisla(set())
             self.model.set_students([])
-            self.detail.set_student(None)
             self.stats_panel.set_stats(compute_stats(YearData(year=0)), deadlines=None)
             for a in (self.action_export, self.action_import, self.action_edit_year,
-                      self.action_save, self.action_delete_student,
+                      self.action_save, self.action_delete_student, self.action_bonus,
                       self.action_reset_year, self.action_delete_year):
                 a.setEnabled(False)
             return
         for a in (self.action_export, self.action_import, self.action_edit_year,
-                  self.action_save, self.action_delete_student,
+                  self.action_save, self.action_delete_student, self.action_bonus,
                   self.action_reset_year, self.action_delete_year):
             a.setEnabled(True)
         # Set repetent os_cisla *before* set_students, aby tabulka při prvním
@@ -247,7 +245,9 @@ class MainWindow(QMainWindow):
         repetents = previous_years_os_cisla(self.data_dir, data.year)
         self.model.set_repetent_os_cisla(repetents)
         self.model.set_students(data.students)
-        self.detail.set_student(None)
+        # Defaultně řadit po Příjmení vzestupně.
+        prijmeni_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "prijmeni"), 1)
+        self.table.sortByColumn(prijmeni_col, Qt.SortOrder.AscendingOrder)
         self._refresh_stats()
         self._apply_row_visibility()
         self._update_status_for_year()
@@ -323,21 +323,23 @@ class MainWindow(QMainWindow):
         self._update_status_for_year()
 
     # ------------------------------------------------------------------
-    # Selection / detail editing
+    # Editing actions
     # ------------------------------------------------------------------
-    def _on_selection_changed(self) -> None:
+    def _edit_bonus_for_selected(self) -> None:
         rows = self.table.selectionModel().selectedRows()
         if not rows:
-            self.detail.set_student(None)
+            QMessageBox.information(self, "Bonus", "Nejdřív vyber studenta v tabulce.")
             return
-        student = self.model.student_at(rows[0].row())
-        self.detail.set_student(student)
-
-    def _on_detail_edited(self) -> None:
-        rows = self.table.selectionModel().selectedRows()
-        if rows:
-            self.model.emit_row_changed(rows[0].row())
-        self._schedule_autosave()
+        row = rows[0].row()
+        student = self.model.student_at(row)
+        if student is None:
+            return
+        dlg = BonusDialog(student, self)
+        if dlg.exec() != BonusDialog.DialogCode.Accepted:
+            return
+        student.bonus = dlg.selected_bonus()
+        self.model.emit_row_changed(row)
+        self._save_now()
 
     def _reset_year_grades(self) -> None:
         if self._current_year_data is None:
