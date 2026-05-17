@@ -46,7 +46,7 @@ from softwaretestingklasifikator.io.csv_import import (
     read_test_scores_csv,
     transfer_from_previous,
 )
-from softwaretestingklasifikator.io.exports import next_export_path
+from softwaretestingklasifikator.io.exports import list_exports, next_export_path
 from softwaretestingklasifikator.io.storage import (
     default_data_dir,
     find_previous_student_by_name,
@@ -369,12 +369,19 @@ class MainWindow(QMainWindow):
     def _export_indicator_html(self) -> str:
         """HTML fragment vyjadřující stav exportu vůči poslednímu STAGu.
 
-        Vrací prázdný řetězec, pokud ročník nemá studenty (nemá smysl
-        zobrazovat indikátor)."""
+        Indikátor dává smysl jen u **aktuálního** akademického roku — u
+        starších ročníků už stejně nelze STAG upravovat. Bere v potaz i
+        ručně smazané archivované exporty (chybí soubor → „nebylo
+        exportováno")."""
         d = self._current_year_data
         if d is None or not d.students:
             return ""
-        if d.last_exported_hash is None:
+        if d.year != date.today().year:
+            return ""
+        # Pokud byly všechny archivované exporty smazané, persistovaný
+        # hash je bezpředmětný — odkazuje na neexistující soubor.
+        has_archive = bool(list_exports(self.data_dir, d.year))
+        if d.last_exported_hash is None or not has_archive:
             return (
                 "<span style='color:#b8860b;'>"
                 "⚠ Zatím nebylo exportováno do STAGu</span>"
@@ -825,6 +832,9 @@ class MainWindow(QMainWindow):
     def _open_exports_manager(self) -> None:
         dlg = ExportsDialog(self.data_dir, self)
         dlg.exec()
+        # Mohl smazat archivované exporty — indikátor v status baru
+        # se musí re-evaluovat.
+        self._update_status_for_year()
 
     def _export_predmet(self) -> None:
         if self._current_year_data is None:
