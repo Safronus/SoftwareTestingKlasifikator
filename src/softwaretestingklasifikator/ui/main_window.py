@@ -57,7 +57,7 @@ from softwaretestingklasifikator.io.storage import (
     load_year,
     save_year,
 )
-from softwaretestingklasifikator.ui.delegates import PokusDelegate
+from softwaretestingklasifikator.ui.delegates import CenteredCheckboxDelegate, PokusDelegate
 from softwaretestingklasifikator.ui.exports_dialog import ExportsDialog
 from softwaretestingklasifikator.ui.stats_panel import StatsPanel
 from softwaretestingklasifikator.ui.student_table_model import COLUMNS, StudentTableModel
@@ -238,6 +238,14 @@ class MainWindow(QMainWindow):
         pokus_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "pokus"), None)
         if pokus_col is not None:
             self.table.setItemDelegateForColumn(pokus_col, PokusDelegate(self.table))
+        # Centrovaný checkbox pro sloupec „Docházka"
+        dochazka_col = next(
+            (i for i, c in enumerate(COLUMNS) if c[0] == "dochazka"), None,
+        )
+        if dochazka_col is not None:
+            self.table.setItemDelegateForColumn(
+                dochazka_col, CenteredCheckboxDelegate(self.table),
+            )
 
         # --- Left dock: statistika ---------------------------------
         self.stats_panel = StatsPanel()
