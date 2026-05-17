@@ -136,6 +136,7 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.7.2** — Odebrána pole `Student.username` a `Student.email` (importovaly se ze STAGu, ale aplikace je nikde nepoužívala). Stará JSON data se nelámu — `from_dict` neznámé klíče ignoruje, `to_dict` je už nezapisuje.
 **0.7.1** — `transfer_from_previous` (transfer při importu nového ročníku i při ručním REP toggle) teď používá **max-pravidlo** i pro body: pokud má student aktuálně lepší body než loňské (+ bonus), zůstanou aktuální. Komentář a docházka se převezmou jen pokud aktuální jsou prázdné; ISTQB lze jen „povýšit", nikdy neztratit. Chrání ručně zadaná data.
 **0.7.0** — Sloupec **REP** má teď klikací **checkbox**. Klik:
 - **Zaškrtnutí** označí studenta jako repetenta (override auto-detekce), vyhledá ho v předchozích ročnících podle **jména + příjmení** (case + diacritics-insensitive) a pokud najde, přenese body z testů a projektu (`transfer_from_previous` — kombinace s bonusem, clamping, reset stavu). Pokud nenajde, jen označí jako repetenta a status bar zobrazí info.

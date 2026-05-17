@@ -73,8 +73,6 @@ class Student:
     prijmeni: str
     titul_pred: str = ""
     titul_za: str = ""
-    username: str = ""
-    email: str = ""
     vizualni_id: str = ""
 
     test1: float = 0.0
@@ -118,8 +116,6 @@ class Student:
             prijmeni=str(data.get("prijmeni", "")),
             titul_pred=str(data.get("titul_pred", "")),
             titul_za=str(data.get("titul_za", "")),
-            username=str(data.get("username", "")),
-            email=str(data.get("email", "")),
             vizualni_id=str(data.get("vizualni_id", "")),
             test1=_round_points(data.get("test1", 0.0)),
             test2=_round_points(data.get("test2", 0.0)),

@@ -36,8 +36,7 @@ def _norm_name(s: str | None) -> str:
 
 # Sloupce, které z roakce CSV používáme. Ostatní jsou ignorovány.
 ROAKCE_COLUMNS = (
-    "osCislo", "jmeno", "prijmeni", "titulPred", "titulZa",
-    "userName", "email", "stav",
+    "osCislo", "jmeno", "prijmeni", "titulPred", "titulZa", "stav",
 )
 
 
@@ -69,8 +68,6 @@ def read_roakce_csv(path: Path) -> list[Student]:
                     prijmeni=(row.get("prijmeni") or "").strip(),
                     titul_pred=(row.get("titulPred") or "").strip(),
                     titul_za=(row.get("titulZa") or "").strip(),
-                    username=(row.get("userName") or "").strip(),
-                    email=(row.get("email") or "").strip(),
                 )
             )
     return students
@@ -256,8 +253,8 @@ def merge_students(existing: list[Student], imported: list[Student]) -> tuple[li
 
     Pravidla:
     - Nový os_cislo → přidat.
-    - Existující → aktualizovat pouze identifikační údaje (jméno, příjmení, tituly,
-      username, email, vizualni_id), body/bonusy/docházku NEPŘEPISOVAT.
+    - Existující → aktualizovat pouze identifikační údaje (jméno, příjmení,
+      tituly), body/bonusy/docházku NEPŘEPISOVAT.
 
     Returns: (merged_list, added_count, updated_count)
     """
@@ -268,7 +265,7 @@ def merge_students(existing: list[Student], imported: list[Student]) -> tuple[li
         if new.os_cislo in by_os:
             cur = by_os[new.os_cislo]
             changed = False
-            for attr in ("jmeno", "prijmeni", "titul_pred", "titul_za", "username", "email"):
+            for attr in ("jmeno", "prijmeni", "titul_pred", "titul_za"):
                 new_val = getattr(new, attr)
                 if new_val and getattr(cur, attr) != new_val:
                     setattr(cur, attr, new_val)
