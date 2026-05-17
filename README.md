@@ -136,6 +136,7 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.6.1** — Fix blikajícího malého okna se statistikou po importu. Příčina: `StatsPanel.set_stats()` volal `_inner.setParent(None)` před `deleteLater()`, čímž z widgetu krátce udělal top-level floating okno. Plus `GradeChart` byl vytvářen bez parenta. Nyní `hide()` před `removeWidget` a explicitní parent u GradeChart — žádný flash.
 **0.6.0** — Nové toolbar tlačítko **„📊 Import bodů z testů (CSV)"**. Načte Moodle/STAG export (UTF-8, comma-separated, sloupce `Křestní jméno`, `Příjmení`, `Test č. 1`, `Test č. 2`) a zapíše body do studentů aktuálního ročníku. Párování podle **jméno + příjmení** (case-insensitive, bez diakritiky). Pravidlo `max(existing, csv)` — repetent, který už má lepší body z minulého roku, o ně nepřijde. Hodnota `-` znamená nepsal (neaktualizuje). Po importu info dialog ukáže počet spárovaných, nenalezených, aktualizovaných T1/T2 a kolik z nich přes max-pravidlo. Reálná data: 92/94 spárováno.
 **0.5.8** — Toolbar pročištěn: odebrána tlačítka **„💾 Uložit"** (autosave běží po každé editaci přes `QTimer.singleShot`) a **„💎 Bonus…"** (bonus se edituje inline v tabulce, auto-rozdělení proběhne přes `suggest_allocation`). `BonusDialog` smazán jako mrtvý kód.
 **0.5.7** — Sloupec **Docházka** přesunut za **Pokus** (na konec meta skupiny). Pořadí teď: Odevzdání → Pokus → Docházka.

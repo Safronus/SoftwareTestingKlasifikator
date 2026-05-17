@@ -1,3 +1,3 @@
 """SoftwareTestingKlasifikator — klasifikace AP4TS (UTB FAI)."""
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"

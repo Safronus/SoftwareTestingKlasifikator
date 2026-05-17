@@ -130,7 +130,7 @@ class StatsPanel(QWidget):
             )
         layout.addLayout(grade_grid)
 
-        chart = GradeChart()
+        chart = GradeChart(new_inner)  # explicit parent → žádný brief floating widget
         chart.set_counts(stats.grades)
         layout.addWidget(chart, 0, Qt.AlignmentFlag.AlignHCenter)
 
@@ -195,10 +195,12 @@ class StatsPanel(QWidget):
 
         layout.addStretch(1)
 
-        # Swap inner widget atomically.
+        # Swap inner widget. hide() PŘED removeWidget zajistí, že starý widget
+        # neblikne jako floating top-level okno. setParent(None) bylo dřív
+        # použito, ale ten z widgetu udělá top-level → krátké okýnko vyskočí.
         if self._inner is not None:
+            self._inner.hide()
             self.layout().removeWidget(self._inner)
-            self._inner.setParent(None)
             self._inner.deleteLater()
         self.layout().addWidget(new_inner)
         self._inner = new_inner
