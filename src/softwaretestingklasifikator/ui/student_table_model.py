@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import locale
 from datetime import date
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
@@ -50,6 +51,17 @@ from softwaretestingklasifikator.ui.theme import (
     UKONCIL_FG,
     projekt_percent_bg,
 )
+
+
+def _cs_key(text: str) -> str:
+    """Klíč pro řazení podle české abecedy (Č mezi C a D, ne za Z).
+
+    Vyžaduje, aby app.py PO QApplication() nastavil cs_CZ.UTF-8 přes
+    locale.setlocale(LC_COLLATE, ...). Qt vlastní `QApplication()` totiž
+    resetuje C locale, proto musí setup proběhnout až po jeho vytvoření.
+    Pokud locale není dostupné, spadne na Unicode default (méně přesné).
+    """
+    return locale.strxfrm((text or "").lower())
 
 
 def _test_status_bg(pure: float, total: float, gate: float) -> QColor:
@@ -226,9 +238,9 @@ class StudentTableModel(QAbstractTableModel):
         def keyfn(s: Student):
             from datetime import date as _date
             if key_attr == "prijmeni":
-                return (s.prijmeni or "").lower()
+                return _cs_key(s.prijmeni)
             if key_attr == "jmeno":
-                return (s.jmeno or "").lower()
+                return _cs_key(s.jmeno)
             if key_attr == "os_cislo":
                 return s.os_cislo or ""
             if key_attr == "test1":
@@ -258,7 +270,7 @@ class StudentTableModel(QAbstractTableModel):
             if key_attr == "repetent":
                 return 1 if self.is_repetent(s) else 0
             if key_attr == "komentar":
-                return (s.komentar or "").lower()
+                return _cs_key(s.komentar)
             return ""
 
         self.beginResetModel()

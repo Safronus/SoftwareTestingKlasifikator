@@ -136,6 +136,7 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.8.4** — Řazení podle **české abecedy** — Č se nyní řadí mezi C a D (ne za Z jak default Unicode). Implementováno přes `locale.strxfrm('cs_CZ.UTF-8')`. Pozor: locale musí být nastaveno **až po** `QApplication()` — Qt jinak reset C locale a strxfrm by se vrátil k default. Sort funguje pro sloupce Příjmení, Jméno, Komentář.
 **0.8.3** — Fix grafu známek: čísla nad sloupci se nahoře ořezávala (LABEL_TOP_H byl menší než výška default fontu macOS — 13pt). Zvětšeno na 16px, font explicitně 9pt, FIXED_HEIGHT 80→92, aby text vždy vlezl celý.
 **0.8.2** — Bug fix multi-file importu dat odevzdání. Když uživatel naimportoval víc CSV najednou, druhé CSV bez data přepsalo první CSV s datem (a student se omylem označil jako Neodevzdal). Nyní se před `apply` všechny řádky **dedupují** podle slovní množiny celého jména s pravidlem **best wins**: datum > žádné datum, novější > starší. Info dialog už taky neukazuje duplicitní jména v sekci „Nenalezeno".
 **0.8.1** — Nové toolbar tlačítko **„✓ Docházka všem"** — označí splněnou docházku všem studentům aktuálního ročníku najednou (s konfirmací). Sloupec **REP** rozšířen z 50 px na 75 px — text „REP" se vedle checkboxu opět vejde.
