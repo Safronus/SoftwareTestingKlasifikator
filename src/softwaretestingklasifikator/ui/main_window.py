@@ -44,6 +44,7 @@ from softwaretestingklasifikator.io.csv_import import (
     read_test_scores_csv,
     transfer_from_previous,
 )
+from softwaretestingklasifikator.io.exports import next_export_path
 from softwaretestingklasifikator.io.storage import (
     default_data_dir,
     find_previous_student_by_name,
@@ -53,6 +54,7 @@ from softwaretestingklasifikator.io.storage import (
     save_year,
 )
 from softwaretestingklasifikator.ui.delegates import PokusDelegate
+from softwaretestingklasifikator.ui.exports_dialog import ExportsDialog
 from softwaretestingklasifikator.ui.stats_panel import StatsPanel
 from softwaretestingklasifikator.ui.student_table_model import COLUMNS, StudentTableModel
 from softwaretestingklasifikator.ui.year_config_dialog import YearConfigDialog
@@ -131,6 +133,13 @@ class MainWindow(QMainWindow):
         self.action_export = QAction("📤 Export hodnocení (CSV)", self)
         self.action_export.triggered.connect(self._export_predmet)
         toolbar.addAction(self.action_export)
+
+        self.action_manage_exports = QAction("📁 Exportované CSV…", self)
+        self.action_manage_exports.setToolTip(
+            "Spravovat historické exporty — seznam, otevřít ve Finderu, smazat."
+        )
+        self.action_manage_exports.triggered.connect(self._open_exports_manager)
+        toolbar.addAction(self.action_manage_exports)
 
         toolbar.addSeparator()
 
@@ -775,10 +784,14 @@ class MainWindow(QMainWindow):
                 msg += f"\n  … a dalších {len(result.unmatched) - 10}"
         QMessageBox.information(self, "Import bodů z testů", msg)
 
+    def _open_exports_manager(self) -> None:
+        dlg = ExportsDialog(self.data_dir, self)
+        dlg.exec()
+
     def _export_predmet(self) -> None:
         if self._current_year_data is None:
             return
-        # 1. Vyber nosný (template) CSV od STAGu.
+        # Jeden dialog: vyber nosné CSV ze STAGu.
         template_str, _ = QFileDialog.getOpenFileName(
             self,
             "Export hodnocení — vyber nosné CSV ze STAGu (SeznamStudentuNaPredmetu)",
@@ -788,22 +801,13 @@ class MainWindow(QMainWindow):
         if not template_str:
             return
 
-        # 2. Kam uložit výstup. Default = vedle template s prefixem "export_".
-        template_path = Path(template_str)
-        default_out = template_path.with_name(f"export_{template_path.name}")
-        output_str, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export hodnocení — kam uložit výsledný CSV",
-            str(default_out),
-            "CSV pro STAG (*.csv);;Všechny soubory (*)",
-        )
-        if not output_str:
-            return
+        # Cílovou cestu spočítáme automaticky v data/exports/<rok>/.
+        output_path = next_export_path(self.data_dir, self._current_year_data.year)
 
         try:
             result = export_via_template_csv(
-                template_path,
-                Path(output_str),
+                Path(template_str),
+                output_path,
                 self._current_year_data,
             )
         except Exception as exc:  # noqa: BLE001
@@ -813,7 +817,7 @@ class MainWindow(QMainWindow):
             return
 
         msg_lines = [
-            f"Uloženo: {output_str}",
+            f"Uloženo: {output_path}",
             "",
             f"Studentů zapsáno do CSV: {result.updated}",
         ]
@@ -832,7 +836,21 @@ class MainWindow(QMainWindow):
                 msg_lines.append(f"  · {name} ({s.os_cislo})")
             if len(result.app_only) > 15:
                 msg_lines.append(f"  … a dalších {len(result.app_only) - 15}")
-        QMessageBox.information(self, "Export dokončen", "\n".join(msg_lines))
+
+        # Info dialog s tlačítkem „Otevřít ve Finderu".
+        box = QMessageBox(self)
+        box.setWindowTitle("Export dokončen")
+        box.setText("\n".join(msg_lines))
+        box.setIcon(QMessageBox.Icon.Information)
+        box.addButton(QMessageBox.StandardButton.Ok)
+        open_btn = box.addButton(
+            "Otevřít ve Finderu", QMessageBox.ButtonRole.ActionRole,
+        )
+        box.exec()
+        if box.clickedButton() is open_btn:
+            from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(output_path.parent)))
 
     # ------------------------------------------------------------------
     def closeEvent(self, event) -> None:  # noqa: N802

@@ -136,6 +136,7 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.10.0** — Auto-archivace exportovaných STAG CSV do `data/exports/<rok>/<timestamp>.csv` (gitignored). Při exportu už jen vyber template — výsledek se uloží automaticky pod jednoznačným timestampem. Info dialog má tlačítko **„Otevřít ve Finderu"** pro rychlý přístup ke složce. Nový toolbar action **„📁 Exportované CSV…"** otevře dialog se seznamem všech historických exportů (filtr podle ročníku, otevření ve Finderu, multi-select smazání). Nová storage vrstva `io/exports.py` s helpers `next_export_path`, `list_exports`, `delete_export`, parserem timestampu z názvu souboru a celkovou velikostí.
 **0.9.0** — Zásadní změna exportu: **„📤 Export hodnocení (CSV)"** teď načte **nosné STAG CSV** (`SeznamStudentuNaPredmetu`) a do něj zapíše čtyři sloupce z aplikace:
 - `zk_datum` — datum odevzdání z app (DD.MM.YYYY). U neodevzdaných bez data: 1. deadline (nebo 2. deadline pokud dnes ≥ druhý termín).
 - `zk_pokus` — vždy odvozeno z `student.pokus`: řádný / neodevzdal → `1`, oprava / po termínu → `2`.
