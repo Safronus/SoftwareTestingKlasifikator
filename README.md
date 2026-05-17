@@ -136,6 +136,7 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.5.7** — Sloupec **Docházka** přesunut za **Pokus** (na konec meta skupiny). Pořadí teď: Odevzdání → Pokus → Docházka.
 **0.5.6** — Sloupce **Celkem** a **Známka** přesunuty před **Docházku** (těsně za Bonus). Buňka **Celkem** má teď stejnou barevnou škálu jako Známka (A zelená → F červená) — vizuálně spáruje body s výslednou klasifikací.
 **0.5.5** — Revert `CenteredCheckboxDelegate` — vlastní vykreslování checkboxu rozbilo viditelnost (interakce s `QTableView::indicator` stylesheetem). Docházka má zpět default Qt checkbox (vlevo). Barevné podbarvení sloupce **Datum odevzdání** podle stavu Pokus zůstává.
 **0.5.4** — Sloupec **Docházka** má teď checkbox **vystředěný** (vlastní `CenteredCheckboxDelegate` — default Qt jej kreslí vlevo). Buňka **Datum odevzdání** přebírá **stejnou barvu jako sloupec Pokus**: zelená (řádný), žlutá (oprava), oranžová (po termínu), červená (neodevzdal). I prázdná buňka u neodevzdaných je červená — vizuální párování usnadní orientaci.
