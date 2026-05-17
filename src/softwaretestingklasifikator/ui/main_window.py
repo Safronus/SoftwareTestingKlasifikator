@@ -839,18 +839,25 @@ class MainWindow(QMainWindow):
     def _export_predmet(self) -> None:
         if self._current_year_data is None:
             return
+        year = self._current_year_data.year
+        # Předvolba: poslední archivovaný export pro tento ročník
+        # (řetězíme verze) — uživatel může přesto vybrat jiné CSV.
+        year_exports = list_exports(self.data_dir, year)
+        initial_path = (
+            str(year_exports[0].path) if year_exports else str(Path.home())
+        )
         # Jeden dialog: vyber nosné CSV ze STAGu.
         template_str, _ = QFileDialog.getOpenFileName(
             self,
             "Export hodnocení — vyber nosné CSV ze STAGu (SeznamStudentuNaPredmetu)",
-            str(Path.home()),
+            initial_path,
             "CSV ze STAGu (*.csv);;Všechny soubory (*)",
         )
         if not template_str:
             return
 
         # Cílovou cestu spočítáme automaticky v data/exports/<rok>/.
-        output_path = next_export_path(self.data_dir, self._current_year_data.year)
+        output_path = next_export_path(self.data_dir, year)
 
         try:
             result = export_via_template_csv(
