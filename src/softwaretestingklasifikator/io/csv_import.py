@@ -36,7 +36,7 @@ def _norm_name(s: str | None) -> str:
 
 # Sloupce, které z roakce CSV používáme. Ostatní jsou ignorovány.
 ROAKCE_COLUMNS = (
-    "osCislo", "jmeno", "prijmeni", "titulPred", "titulZa", "stav",
+    "osCislo", "jmeno", "prijmeni", "stav",
 )
 
 
@@ -66,8 +66,6 @@ def read_roakce_csv(path: Path) -> list[Student]:
                     os_cislo=os_cislo,
                     jmeno=(row.get("jmeno") or "").strip(),
                     prijmeni=(row.get("prijmeni") or "").strip(),
-                    titul_pred=(row.get("titulPred") or "").strip(),
-                    titul_za=(row.get("titulZa") or "").strip(),
                 )
             )
     return students
@@ -81,7 +79,6 @@ class TestScoreRow:
 
     jmeno: str
     prijmeni: str
-    vizualni_id: str = ""
     test1: float | None = None  # None = nepsal/-
     test2: float | None = None
 
@@ -136,7 +133,6 @@ def read_test_scores_csv(path: Path) -> list[TestScoreRow]:
         fields = list(reader.fieldnames or [])
         jmeno_col = _find_column(fields, "křestní", "jméno", "first")
         prijmeni_col = _find_column(fields, "příjmení", "surname", "last")
-        id_col = _find_column(fields, "vizualni_id", "ID", "os. č")
         t1_col = _find_column(fields, "Test č. 1", "Test 1", "test1")
         t2_col = _find_column(fields, "Test č. 2", "Test 2", "test2")
         if not jmeno_col or not prijmeni_col:
@@ -149,7 +145,6 @@ def read_test_scores_csv(path: Path) -> list[TestScoreRow]:
             rows.append(TestScoreRow(
                 jmeno=(raw.get(jmeno_col) or "").strip(),
                 prijmeni=(raw.get(prijmeni_col) or "").strip(),
-                vizualni_id=(raw.get(id_col) or "").strip() if id_col else "",
                 test1=_parse_score(raw.get(t1_col)) if t1_col else None,
                 test2=_parse_score(raw.get(t2_col)) if t2_col else None,
             ))
@@ -265,7 +260,7 @@ def merge_students(existing: list[Student], imported: list[Student]) -> tuple[li
         if new.os_cislo in by_os:
             cur = by_os[new.os_cislo]
             changed = False
-            for attr in ("jmeno", "prijmeni", "titul_pred", "titul_za"):
+            for attr in ("jmeno", "prijmeni"):
                 new_val = getattr(new, attr)
                 if new_val and getattr(cur, attr) != new_val:
                     setattr(cur, attr, new_val)

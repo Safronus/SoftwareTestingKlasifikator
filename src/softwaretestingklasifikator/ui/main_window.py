@@ -438,7 +438,7 @@ class MainWindow(QMainWindow):
             "Smazána budou: body z testů, body z projektu, bonusy, docházka,\n"
             "datum odevzdání, stav pokusu, ISTQB, ukončení studia, komentář a\n"
             "případná známka-override.\n\n"
-            "Seznam studentů (jméno, příjmení, os. číslo, vizualni_id…) zůstává.",
+            "Seznam studentů (jméno, příjmení, os. číslo) zůstává.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )

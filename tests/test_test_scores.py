@@ -116,7 +116,6 @@ def test_read_csv_moodle_format(tmp_path):
     assert len(rows) == 3
     assert rows[0].jmeno == "Matěj"
     assert rows[0].prijmeni == "Bača"
-    assert rows[0].vizualni_id == "MB080084"
     assert rows[0].test1 is None  # "-"
     assert rows[0].test2 is None
     assert rows[1].test1 == 13.33

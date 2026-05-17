@@ -71,9 +71,6 @@ class Student:
     os_cislo: str
     jmeno: str
     prijmeni: str
-    titul_pred: str = ""
-    titul_za: str = ""
-    vizualni_id: str = ""
 
     test1: float = 0.0
     test2: float = 0.0
@@ -97,8 +94,7 @@ class Student:
     znamka_override: str | None = None
 
     def display_name(self) -> str:
-        parts = [self.titul_pred, self.jmeno, self.prijmeni, self.titul_za]
-        return " ".join(p for p in parts if p).strip()
+        return " ".join(p for p in (self.jmeno, self.prijmeni) if p).strip()
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -114,9 +110,6 @@ class Student:
             os_cislo=str(data.get("os_cislo", "")),
             jmeno=str(data.get("jmeno", "")),
             prijmeni=str(data.get("prijmeni", "")),
-            titul_pred=str(data.get("titul_pred", "")),
-            titul_za=str(data.get("titul_za", "")),
-            vizualni_id=str(data.get("vizualni_id", "")),
             test1=_round_points(data.get("test1", 0.0)),
             test2=_round_points(data.get("test2", 0.0)),
             projekt=_round_points(data.get("projekt", 0.0)),

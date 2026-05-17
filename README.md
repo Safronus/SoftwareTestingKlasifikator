@@ -136,6 +136,7 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.7.3** — Další úklid nerelevantních polí. Odebráno `Student.titul_pred`, `Student.titul_za`, `Student.vizualni_id` a `TestScoreRow.vizualni_id`. `display_name()` vrací jen `jmeno + prijmeni`. STAG export do CSV vyplňuje sloupce `titul` a `vizualni_id` prázdně — předpokládáme, že STAG si je doplní jinde, nebo si jejich absenci snese. Import bodů z testů matchuje studenty pouze podle jména + příjmení (vizualni_id z Moodle CSV se přečte, ale ignoruje).
 **0.7.2** — Odebrána pole `Student.username` a `Student.email` (importovaly se ze STAGu, ale aplikace je nikde nepoužívala). Stará JSON data se nelámu — `from_dict` neznámé klíče ignoruje, `to_dict` je už nezapisuje.
 **0.7.1** — `transfer_from_previous` (transfer při importu nového ročníku i při ručním REP toggle) teď používá **max-pravidlo** i pro body: pokud má student aktuálně lepší body než loňské (+ bonus), zůstanou aktuální. Komentář a docházka se převezmou jen pokud aktuální jsou prázdné; ISTQB lze jen „povýšit", nikdy neztratit. Chrání ručně zadaná data.
 **0.7.0** — Sloupec **REP** má teď klikací **checkbox**. Klik:

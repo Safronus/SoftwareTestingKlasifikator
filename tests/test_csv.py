@@ -40,8 +40,7 @@ def _write_roakce(path, rows):
 def test_read_roakce_basic(tmp_path):
     p = tmp_path / "in.csv"
     _write_roakce(p, [
-        {"osCislo": "A1", "jmeno": "Eva", "prijmeni": "Nováková", "stav": "S",
-         "titulPred": "Bc."},
+        {"osCislo": "A1", "jmeno": "Eva", "prijmeni": "Nováková", "stav": "S"},
         {"osCislo": "A2", "jmeno": "Petr", "prijmeni": "Svoboda", "stav": "S"},
     ])
     out = read_roakce_csv(p)
@@ -49,7 +48,7 @@ def test_read_roakce_basic(tmp_path):
     assert out[0].os_cislo == "A1"
     assert out[0].jmeno == "Eva"
     assert out[0].prijmeni == "Nováková"
-    assert out[0].titul_pred == "Bc."
+    assert out[1].os_cislo == "A2"
 
 
 def test_read_roakce_skips_inactive(tmp_path):
@@ -66,7 +65,7 @@ def test_read_roakce_skips_inactive(tmp_path):
 def test_merge_students_adds_and_updates():
     existing = [Student(os_cislo="A1", jmeno="Old", prijmeni="Name")]
     imported = [
-        Student(os_cislo="A1", jmeno="New", prijmeni="Name", titul_pred="Bc."),
+        Student(os_cislo="A1", jmeno="New", prijmeni="Surname"),
         Student(os_cislo="A2", jmeno="Other", prijmeni="Person"),
     ]
     merged, added, updated = merge_students(existing, imported)
@@ -74,7 +73,7 @@ def test_merge_students_adds_and_updates():
     assert updated == 1
     assert [s.os_cislo for s in merged] == ["A1", "A2"]
     assert merged[0].jmeno == "New"
-    assert merged[0].titul_pred == "Bc."
+    assert merged[0].prijmeni == "Surname"
 
 
 def test_merge_does_not_overwrite_points():
@@ -87,9 +86,9 @@ def test_merge_does_not_overwrite_points():
 
 def test_export_predmet_csv_roundtrip(tmp_path):
     students = [
-        Student(os_cislo="A1", jmeno="Eva", prijmeni="N", vizualni_id="EN001",
+        Student(os_cislo="A1", jmeno="Eva", prijmeni="N",
                 test1=25, test2=25, projekt=150, dochazka=True),
-        Student(os_cislo="A2", jmeno="Petr", prijmeni="S", vizualni_id="PS002",
+        Student(os_cislo="A2", jmeno="Petr", prijmeni="S",
                 test1=14, test2=20, projekt=100, dochazka=True),  # T1 < 15 → F
     ]
     data = YearData(year=2026, students=students)
