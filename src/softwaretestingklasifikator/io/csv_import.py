@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import csv
+import unicodedata
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from softwaretestingklasifikator.config import (
@@ -19,6 +21,18 @@ from softwaretestingklasifikator.domain.models import (
     BonusBreakdown,
     Student,
 )
+
+
+def _norm_name(s: str | None) -> str:
+    """Normalizace jména/příjmení pro porovnání: lowercase + bez diakritiky."""
+    if not s:
+        return ""
+    ascii_form = (
+        unicodedata.normalize("NFD", s)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    return ascii_form.strip().lower()
 
 # Sloupce, které z roakce CSV používáme. Ostatní jsou ignorovány.
 ROAKCE_COLUMNS = (
@@ -60,6 +74,133 @@ def read_roakce_csv(path: Path) -> list[Student]:
                 )
             )
     return students
+
+
+@dataclass
+class TestScoreRow:
+    """Jeden řádek z CSV s body z testů (Moodle / STAG export)."""
+
+    __test__ = False  # vyhne pytestu sběru jako test class
+
+    jmeno: str
+    prijmeni: str
+    vizualni_id: str = ""
+    test1: float | None = None  # None = nepsal/-
+    test2: float | None = None
+
+
+@dataclass
+class TestScoreImportResult:
+    __test__ = False  # vyhne pytestu sběru jako test class
+    matched: int = 0
+    unmatched: list[tuple[str, str]] = field(default_factory=list)
+    updated_test1: int = 0
+    updated_test2: int = 0
+    improved_test1: int = 0  # max-pravidlo: nová hodnota nahradila vyšší původní
+    improved_test2: int = 0
+    rows_total: int = 0
+
+
+def _find_column(fields: list[str], *candidates: str) -> str | None:
+    """Najde sloupec, jehož název obsahuje (case-insensitive) některý z kandidátů.
+
+    Tolerantní vůči variacím v hlavičkách (Moodle vs STAG vs vlastní).
+    """
+    for cand in candidates:
+        cand_low = cand.lower()
+        for f in fields:
+            if cand_low in (f or "").lower():
+                return f
+    return None
+
+
+def _parse_score(value) -> float | None:
+    """Parsuje string z CSV: prázdné nebo '-'/'—' → None, jinak float (akceptuje ',')."""
+    if value is None:
+        return None
+    v = str(value).strip()
+    if v in ("", "-", "—", "–"):
+        return None
+    try:
+        return float(v.replace(",", "."))
+    except ValueError:
+        return None
+
+
+def read_test_scores_csv(path: Path) -> list[TestScoreRow]:
+    """Načte CSV s body z testů.
+
+    Očekává UTF-8 comma-separated formát s hlavičkami typu Moodle/STAG:
+    `Křestní jméno, Příjmení, ID, ..., Test: Test č. 1 (...), Test: Test č. 2 (...)`.
+    Tolerantní k variacím — sloupce se hledají podle podřetězce.
+    """
+    with open(path, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        fields = list(reader.fieldnames or [])
+        jmeno_col = _find_column(fields, "křestní", "jméno", "first")
+        prijmeni_col = _find_column(fields, "příjmení", "surname", "last")
+        id_col = _find_column(fields, "vizualni_id", "ID", "os. č")
+        t1_col = _find_column(fields, "Test č. 1", "Test 1", "test1")
+        t2_col = _find_column(fields, "Test č. 2", "Test 2", "test2")
+        if not jmeno_col or not prijmeni_col:
+            raise ValueError(
+                "CSV neobsahuje sloupce 'Křestní jméno' a 'Příjmení'. "
+                f"Nalezené sloupce: {fields}"
+            )
+        rows: list[TestScoreRow] = []
+        for raw in reader:
+            rows.append(TestScoreRow(
+                jmeno=(raw.get(jmeno_col) or "").strip(),
+                prijmeni=(raw.get(prijmeni_col) or "").strip(),
+                vizualni_id=(raw.get(id_col) or "").strip() if id_col else "",
+                test1=_parse_score(raw.get(t1_col)) if t1_col else None,
+                test2=_parse_score(raw.get(t2_col)) if t2_col else None,
+            ))
+    return rows
+
+
+def apply_test_scores(
+    students: list[Student],
+    rows: list[TestScoreRow],
+) -> TestScoreImportResult:
+    """Zapíše body z CSV do existujících studentů ročníku.
+
+    Párování: podle (jméno, příjmení), normalizováno (lowercase + bez diakritiky).
+    Pravidlo: vždy `max(existing, csv)` — repetent může mít už lepší body z minulého
+    roku, ty zůstanou. Body se clampují na MAX_TEST1 / MAX_TEST2.
+    """
+    by_name: dict[tuple[str, str], Student] = {}
+    for s in students:
+        key = (_norm_name(s.jmeno), _norm_name(s.prijmeni))
+        # První výskyt vyhrává — duplicitní jména jsou edge case.
+        if key not in by_name:
+            by_name[key] = s
+
+    result = TestScoreImportResult(rows_total=len(rows))
+    for r in rows:
+        key = (_norm_name(r.jmeno), _norm_name(r.prijmeni))
+        student = by_name.get(key)
+        if student is None:
+            result.unmatched.append((r.jmeno, r.prijmeni))
+            continue
+        result.matched += 1
+        if r.test1 is not None:
+            candidate = min(MAX_TEST1, round(r.test1, POINTS_DECIMALS))
+            new_t1 = max(student.test1, candidate)
+            if new_t1 != student.test1:
+                if student.test1 > 0:
+                    result.improved_test1 += 1
+                student.test1 = new_t1
+                result.updated_test1 += 1
+        if r.test2 is not None:
+            candidate = min(MAX_TEST2, round(r.test2, POINTS_DECIMALS))
+            new_t2 = max(student.test2, candidate)
+            if new_t2 != student.test2:
+                if student.test2 > 0:
+                    result.improved_test2 += 1
+                student.test2 = new_t2
+                result.updated_test2 += 1
+    return result
 
 
 def transfer_from_previous(student: Student, previous: Student) -> None:

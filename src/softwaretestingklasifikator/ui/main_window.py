@@ -34,8 +34,10 @@ from softwaretestingklasifikator.domain.stats import (
 )
 from softwaretestingklasifikator.io.csv_export import export_to_predmet_csv
 from softwaretestingklasifikator.io.csv_import import (
+    apply_test_scores,
     merge_students,
     read_roakce_csv,
+    read_test_scores_csv,
     transfer_from_previous,
 )
 from softwaretestingklasifikator.io.storage import (
@@ -101,6 +103,16 @@ class MainWindow(QMainWindow):
         self.action_import = QAction("📥 Import studentů (CSV)", self)
         self.action_import.triggered.connect(self._import_roakce)
         toolbar.addAction(self.action_import)
+
+        self.action_import_tests = QAction("📊 Import bodů z testů (CSV)", self)
+        self.action_import_tests.setToolTip(
+            "Naimportuje body z Testu č. 1 a č. 2 z CSV (Moodle export). "
+            "Spáruje studenty podle jména + příjmení. Vždy se zapíše vyšší "
+            "z původní a nové hodnoty (repetent, který už má body z minulého "
+            "roku, o ně nepřijde)."
+        )
+        self.action_import_tests.triggered.connect(self._import_test_scores)
+        toolbar.addAction(self.action_import_tests)
 
         self.action_export = QAction("📤 Export hodnocení (CSV)", self)
         self.action_export.triggered.connect(self._export_predmet)
@@ -254,7 +266,8 @@ class MainWindow(QMainWindow):
             self.model.set_repetent_os_cisla(set())
             self.model.set_students([])
             self.stats_panel.set_stats(compute_stats(YearData(year=0)), deadlines=None)
-            for a in (self.action_export, self.action_import, self.action_edit_year,
+            for a in (self.action_export, self.action_import, self.action_import_tests,
+                      self.action_edit_year,
                       self.action_delete_student,
                       self.action_reset_year, self.action_delete_year):
                 a.setEnabled(False)
@@ -547,6 +560,55 @@ class MainWindow(QMainWindow):
             "Import dokončen",
             f"Načteno {len(imported)} řádků.\nPřidáno: {added}\nAktualizováno: {updated}",
         )
+
+    def _import_test_scores(self) -> None:
+        if self._current_year_data is None:
+            return
+        path_str, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import bodů z testů (CSV)",
+            str(Path.home()),
+            "CSV (*.csv);;Všechny soubory (*)",
+        )
+        if not path_str:
+            return
+        try:
+            rows = read_test_scores_csv(Path(path_str))
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(
+                self, "Chyba importu",
+                f"Načtení CSV s body z testů selhalo:\n{exc}",
+            )
+            return
+
+        result = apply_test_scores(self._current_year_data.students, rows)
+
+        # Refresh tabulky (set_students invaliduje cache + sort + repaint).
+        self.model.set_students(self._current_year_data.students)
+        prijmeni_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "prijmeni"), 1)
+        self.table.sortByColumn(prijmeni_col, Qt.SortOrder.AscendingOrder)
+        self._refresh_stats()
+        self._apply_row_visibility()
+        self._save_now()
+
+        msg = (
+            f"Načteno {result.rows_total} řádků z CSV.\n"
+            f"Spárováno: {result.matched}\n"
+            f"Nenalezeno v ročníku: {len(result.unmatched)}\n\n"
+            f"Test 1 — aktualizováno: {result.updated_test1}"
+        )
+        if result.improved_test1:
+            msg += f" (z toho {result.improved_test1} přes pravidlo max)"
+        msg += f"\nTest 2 — aktualizováno: {result.updated_test2}"
+        if result.improved_test2:
+            msg += f" (z toho {result.improved_test2} přes pravidlo max)"
+        if result.unmatched:
+            msg += "\n\nNenalezeni (prvních 10):"
+            for j, p in result.unmatched[:10]:
+                msg += f"\n  · {j} {p}"
+            if len(result.unmatched) > 10:
+                msg += f"\n  … a dalších {len(result.unmatched) - 10}"
+        QMessageBox.information(self, "Import bodů z testů", msg)
 
     def _export_predmet(self) -> None:
         if self._current_year_data is None:
