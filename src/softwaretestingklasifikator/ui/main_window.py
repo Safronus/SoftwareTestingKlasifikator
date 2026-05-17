@@ -45,7 +45,6 @@ from softwaretestingklasifikator.io.storage import (
     load_year,
     save_year,
 )
-from softwaretestingklasifikator.ui.bonus_dialog import BonusDialog
 from softwaretestingklasifikator.ui.delegates import PokusDelegate
 from softwaretestingklasifikator.ui.stats_panel import StatsPanel
 from softwaretestingklasifikator.ui.student_table_model import COLUMNS, StudentTableModel
@@ -109,22 +108,9 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        self.action_save = QAction("💾 Uložit", self)
-        self.action_save.setShortcut("Ctrl+S")
-        self.action_save.triggered.connect(self._save_now)
-        toolbar.addAction(self.action_save)
-
         self.action_delete_student = QAction("🗑 Odstranit studenta", self)
         self.action_delete_student.triggered.connect(self._delete_selected_student)
         toolbar.addAction(self.action_delete_student)
-
-        self.action_bonus = QAction("💎 Bonus…", self)
-        self.action_bonus.setToolTip(
-            "Nastavit bonusové body pro vybraného studenta (T1 / T2 / Projekt) "
-            "s možností auto-rozdělit."
-        )
-        self.action_bonus.triggered.connect(self._edit_bonus_for_selected)
-        toolbar.addAction(self.action_bonus)
 
         self.action_show_finished = QAction("👁 Zobrazit ukončené", self)
         self.action_show_finished.setCheckable(True)
@@ -269,12 +255,12 @@ class MainWindow(QMainWindow):
             self.model.set_students([])
             self.stats_panel.set_stats(compute_stats(YearData(year=0)), deadlines=None)
             for a in (self.action_export, self.action_import, self.action_edit_year,
-                      self.action_save, self.action_delete_student, self.action_bonus,
+                      self.action_delete_student,
                       self.action_reset_year, self.action_delete_year):
                 a.setEnabled(False)
             return
         for a in (self.action_export, self.action_import, self.action_edit_year,
-                  self.action_save, self.action_delete_student, self.action_bonus,
+                  self.action_delete_student,
                   self.action_reset_year, self.action_delete_year):
             a.setEnabled(True)
         # Set repetent os_cisla *before* set_students, aby tabulka při prvním
@@ -421,25 +407,6 @@ class MainWindow(QMainWindow):
         self._current_year_data.deadlines = dlg.selected_deadlines()
         self._save_now()
         self._update_status_for_year()
-
-    # ------------------------------------------------------------------
-    # Editing actions
-    # ------------------------------------------------------------------
-    def _edit_bonus_for_selected(self) -> None:
-        rows = self.table.selectionModel().selectedRows()
-        if not rows:
-            QMessageBox.information(self, "Bonus", "Nejdřív vyber studenta v tabulce.")
-            return
-        row = rows[0].row()
-        student = self.model.student_at(row)
-        if student is None:
-            return
-        dlg = BonusDialog(student, self)
-        if dlg.exec() != BonusDialog.DialogCode.Accepted:
-            return
-        student.bonus = dlg.selected_bonus()
-        self.model.emit_row_changed(row)
-        self._save_now()
 
     def _reset_year_grades(self) -> None:
         if self._current_year_data is None:

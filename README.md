@@ -136,6 +136,7 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.5.8** — Toolbar pročištěn: odebrána tlačítka **„💾 Uložit"** (autosave běží po každé editaci přes `QTimer.singleShot`) a **„💎 Bonus…"** (bonus se edituje inline v tabulce, auto-rozdělení proběhne přes `suggest_allocation`). `BonusDialog` smazán jako mrtvý kód.
 **0.5.7** — Sloupec **Docházka** přesunut za **Pokus** (na konec meta skupiny). Pořadí teď: Odevzdání → Pokus → Docházka.
 **0.5.6** — Sloupce **Celkem** a **Známka** přesunuty před **Docházku** (těsně za Bonus). Buňka **Celkem** má teď stejnou barevnou škálu jako Známka (A zelená → F červená) — vizuálně spáruje body s výslednou klasifikací.
 **0.5.5** — Revert `CenteredCheckboxDelegate` — vlastní vykreslování checkboxu rozbilo viditelnost (interakce s `QTableView::indicator` stylesheetem). Docházka má zpět default Qt checkbox (vlevo). Barevné podbarvení sloupce **Datum odevzdání** podle stavu Pokus zůstává.
