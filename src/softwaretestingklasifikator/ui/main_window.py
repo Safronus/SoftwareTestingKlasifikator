@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from PySide6.QtCore import QModelIndex, Qt, QTimer
@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from softwaretestingklasifikator import __version__
 from softwaretestingklasifikator.config import DATE_FORMAT_PY, SUBJECT_CODE
+from softwaretestingklasifikator.domain.export_state import compute_export_hash
 from softwaretestingklasifikator.domain.models import (
     POKUS_RADNY,
     BonusBreakdown,
@@ -32,6 +33,7 @@ from softwaretestingklasifikator.domain.stats import (
     previous_years_os_cisla,
     top_n_indices,
 )
+from softwaretestingklasifikator.domain.time_ago import format_time_ago
 from softwaretestingklasifikator.io.csv_export import export_via_template_csv
 from softwaretestingklasifikator.io.csv_import import (
     ProjectDateImportResult,
@@ -227,6 +229,8 @@ class MainWindow(QMainWindow):
         self.model.studentChanged.connect(self._schedule_autosave)
         self.model.studentChanged.connect(lambda *_: self._refresh_stats())
         self.model.studentChanged.connect(lambda *_: self._apply_row_visibility())
+        # Indikátor neuložených změn ať reaguje hned — ne až po autosave.
+        self.model.studentChanged.connect(lambda *_: self._update_status_for_year())
         self.model.modelReset.connect(self._refresh_stats)
         self.model.modelReset.connect(self._apply_row_visibility)
         self.model.repetentToggledOn.connect(self._on_repetent_marked)
@@ -248,6 +252,7 @@ class MainWindow(QMainWindow):
         # --- Status bar --------------------------------------------
         self.setStatusBar(QStatusBar())
         self.status_label = QLabel("")
+        self.status_label.setTextFormat(Qt.TextFormat.RichText)
         self.statusBar().addPermanentWidget(self.status_label)
 
     # ------------------------------------------------------------------
@@ -354,7 +359,40 @@ class MainWindow(QMainWindow):
         if dl.second:
             dl_text.append(f"2. pokus do {dl.second.strftime(DATE_FORMAT_PY)}")
         suffix = " · " + " · ".join(dl_text) if dl_text else ""
-        self._update_status(f"Ročník {d.year} ({len(d.students)} studentů){suffix}")
+        base = f"Ročník {d.year} ({len(d.students)} studentů){suffix}"
+        indicator_html = self._export_indicator_html()
+        if indicator_html:
+            self._update_status(f"{base} &nbsp; {indicator_html}")
+        else:
+            self._update_status(base)
+
+    def _export_indicator_html(self) -> str:
+        """HTML fragment vyjadřující stav exportu vůči poslednímu STAGu.
+
+        Vrací prázdný řetězec, pokud ročník nemá studenty (nemá smysl
+        zobrazovat indikátor)."""
+        d = self._current_year_data
+        if d is None or not d.students:
+            return ""
+        if d.last_exported_hash is None:
+            return (
+                "<span style='color:#b8860b;'>"
+                "⚠ Zatím nebylo exportováno do STAGu</span>"
+            )
+        current = compute_export_hash(d)
+        when = (
+            format_time_ago(d.last_exported_at) if d.last_exported_at else ""
+        )
+        when_suffix = f" ({when})" if when else ""
+        if current == d.last_exported_hash:
+            return (
+                f"<span style='color:#1f8a39;'>"
+                f"✓ Synchronizováno se STAGem{when_suffix}</span>"
+            )
+        return (
+            f"<span style='color:#c0392b;'>"
+            f"● Neuložené změny od posledního exportu{when_suffix}</span>"
+        )
 
     def _update_status(self, msg: str) -> None:
         self.status_label.setText(msg)
@@ -815,6 +853,21 @@ class MainWindow(QMainWindow):
                 self, "Chyba exportu", f"Export selhal:\n{exc}",
             )
             return
+
+        # Zaznamenej hash + čas exportu, ať umíme detekovat neuložené změny.
+        self._sync_students_to_year_data()
+        self._current_year_data.last_exported_hash = compute_export_hash(
+            self._current_year_data
+        )
+        self._current_year_data.last_exported_at = datetime.now()
+        try:
+            save_year(self.data_dir, self._current_year_data)
+        except OSError as exc:
+            QMessageBox.warning(
+                self, "Pozor",
+                f"CSV bylo uloženo, ale stav exportu se nepodařilo zapsat:\n{exc}",
+            )
+        self._update_status_for_year()
 
         msg_lines = [
             f"Uloženo: {output_path}",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import date
+from datetime import date, datetime
 
 from softwaretestingklasifikator.config import POINTS_DECIMALS
 
@@ -161,18 +161,32 @@ class YearData:
     year: int
     deadlines: YearDeadlines = field(default_factory=YearDeadlines)
     students: list[Student] = field(default_factory=list)
+    # Hash exportovatelných polí v okamžiku posledního STAG exportu.
+    # None = ročník ještě nikdy nebyl exportován.
+    last_exported_hash: str | None = None
+    # Timestamp posledního exportu (ISO v JSON, datetime v paměti).
+    last_exported_at: datetime | None = None
 
     def to_dict(self) -> dict:
         return {
             "year": self.year,
             "deadlines": self.deadlines.to_dict(),
             "students": [s.to_dict() for s in self.students],
+            "last_exported_hash": self.last_exported_hash,
+            "last_exported_at": (
+                self.last_exported_at.isoformat()
+                if self.last_exported_at else None
+            ),
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> YearData:
+        ts_str = data.get("last_exported_at")
+        ts = datetime.fromisoformat(ts_str) if ts_str else None
         return cls(
             year=int(data["year"]),
             deadlines=YearDeadlines.from_dict(data.get("deadlines")),
             students=[Student.from_dict(s) for s in data.get("students", [])],
+            last_exported_hash=data.get("last_exported_hash") or None,
+            last_exported_at=ts,
         )
