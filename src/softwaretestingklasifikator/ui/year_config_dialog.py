@@ -1,15 +1,21 @@
-"""Dialog pro založení / editaci ročníku (rok + deadliny)."""
+"""Dialog pro založení / editaci ročníku (rok + deadliny + volitelný CSV import)."""
 
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
     QSpinBox,
     QVBoxLayout,
 )
@@ -30,6 +36,8 @@ class YearConfigDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self._existing_years = existing_years or set()
+        self._csv_path: Path | None = None
+        self._edit_only_deadlines = edit_only_deadlines
         self.setWindowTitle("Ročník — nastavení")
 
         layout = QVBoxLayout(self)
@@ -70,10 +78,50 @@ class YearConfigDialog(QDialog):
         form.addRow("Deadline 1. pokusu:", self.date_first)
         form.addRow("Deadline 2. pokusu:", self.date_second)
 
+        # CSV picker — jen při zakládání nového ročníku.
+        if not edit_only_deadlines:
+            csv_row = QHBoxLayout()
+            self.csv_edit = QLineEdit()
+            self.csv_edit.setPlaceholderText("Volitelný — getStudentiByRoakce CSV")
+            self.csv_edit.setReadOnly(True)
+            btn_browse = QPushButton("Procházet…")
+            btn_browse.clicked.connect(self._browse_csv)
+            btn_clear = QPushButton("Vymazat")
+            btn_clear.clicked.connect(self._clear_csv)
+            csv_row.addWidget(self.csv_edit, 1)
+            csv_row.addWidget(btn_browse)
+            csv_row.addWidget(btn_clear)
+            form.addRow("Import studentů:", csv_row)
+
+            hint = QLabel(
+                "Studenti se naimportují z CSV. Pokud jejich os. číslo "
+                "figuruje v některém předchozím ročníku, budou označení "
+                "jako <b>repetenti</b> a převezmou body z minulého roku "
+                "(bez bonusu)."
+            )
+            hint.setWordWrap(True)
+            hint.setStyleSheet("color: rgba(127,127,127,0.9); font-size: 11px;")
+            layout.addWidget(hint)
+
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._on_accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _browse_csv(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Vyber CSV se studenty (getStudentiByRoakce)",
+            str(Path.home()),
+            "CSV ze STAGu (*.csv);;Všechny soubory (*)",
+        )
+        if path:
+            self._csv_path = Path(path)
+            self.csv_edit.setText(path)
+
+    def _clear_csv(self) -> None:
+        self._csv_path = None
+        self.csv_edit.clear()
 
     def _on_accept(self) -> None:
         if self.spin_year.isEnabled() and self.spin_year.value() in self._existing_years:
@@ -94,3 +142,6 @@ class YearConfigDialog(QDialog):
             return date(d.year(), d.month(), d.day())
 
         return YearDeadlines(first=from_de(self.date_first), second=from_de(self.date_second))
+
+    def selected_csv_path(self) -> Path | None:
+        return self._csv_path

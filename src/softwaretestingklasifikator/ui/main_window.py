@@ -33,9 +33,14 @@ from softwaretestingklasifikator.domain.stats import (
     top_n_indices,
 )
 from softwaretestingklasifikator.io.csv_export import export_to_predmet_csv
-from softwaretestingklasifikator.io.csv_import import merge_students, read_roakce_csv
+from softwaretestingklasifikator.io.csv_import import (
+    merge_students,
+    read_roakce_csv,
+    transfer_from_previous,
+)
 from softwaretestingklasifikator.io.storage import (
     default_data_dir,
+    find_previous_students_batch,
     list_available_years,
     load_year,
     save_year,
@@ -327,12 +332,53 @@ class MainWindow(QMainWindow):
             return
         year = dlg.selected_year()
         deadlines = dlg.selected_deadlines()
+        csv_path = dlg.selected_csv_path()
+
         data = YearData(year=year, deadlines=deadlines, students=[])
+
+        info_msg = ""
+        if csv_path is not None:
+            try:
+                imported = read_roakce_csv(csv_path)
+            except Exception as exc:  # noqa: BLE001
+                QMessageBox.critical(
+                    self, "Chyba importu",
+                    f"Načtení CSV selhalo:\n{exc}\n\n"
+                    f"Ročník {year} bude vytvořen prázdný.",
+                )
+                imported = []
+
+            if imported:
+                # Najdi nejnovější předchozí výskyty napříč všemi roky.
+                os_cisla = {s.os_cislo for s in imported if s.os_cislo}
+                prev_map = find_previous_students_batch(self.data_dir, os_cisla, year)
+
+                repetenti_count = 0
+                source_years: set[int] = set()
+                for s in imported:
+                    found = prev_map.get(s.os_cislo)
+                    if found is not None:
+                        prev_year, prev_student = found
+                        transfer_from_previous(s, prev_student)
+                        repetenti_count += 1
+                        source_years.add(prev_year)
+
+                data.students = imported
+                info_msg = (
+                    f"Naimportováno {len(imported)} studentů.\n"
+                    f"Repetentů (přeneseno z minulých let): {repetenti_count}"
+                )
+                if source_years:
+                    yrs = ", ".join(str(y) for y in sorted(source_years, reverse=True))
+                    info_msg += f"\nZdrojové ročníky: {yrs}"
+
         save_year(self.data_dir, data)
         self._refresh_year_combo()
         idx = self.year_combo.findText(str(year))
         if idx >= 0:
             self.year_combo.setCurrentIndex(idx)
+        if info_msg:
+            QMessageBox.information(self, "Ročník vytvořen", info_msg)
 
     def _edit_year_deadlines(self) -> None:
         if self._current_year_data is None:

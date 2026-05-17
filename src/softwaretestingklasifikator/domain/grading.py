@@ -77,8 +77,12 @@ def grade_from_celkem(celkem: float) -> str:
     return GRADE_BANDS[-1][2]
 
 
-def evaluate(student: Student) -> GradeResult:
-    """Spočítá bránu, celkové body a finální známku."""
+def evaluate(student: Student, is_repetent: bool = False) -> GradeResult:
+    """Spočítá bránu, celkové body a finální známku.
+
+    `is_repetent`: pokud True, docházka je automaticky uznána (repetent ji už
+    splnil v některém předchozím ročníku). Mimo to platí standardní pravidla.
+    """
     t1 = _r(student.test1 + student.bonus.test1)
     t2 = _r(student.test2 + student.bonus.test2)
     pj = _r(student.projekt + student.bonus.projekt)
@@ -105,7 +109,7 @@ def evaluate(student: Student) -> GradeResult:
         test2_ok=t2 >= GATE_TEST2,
         projekt_ok=pj >= GATE_PROJEKT,
         odevzdano_ok=student.pokus != POKUS_NEODEVZDAL,
-        dochazka_ok=student.dochazka,
+        dochazka_ok=student.dochazka or is_repetent,
     )
 
     znamka = grade_from_celkem(celkem) if gate.all_ok else "F"

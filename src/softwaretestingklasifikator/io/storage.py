@@ -8,8 +8,12 @@ import os
 import re
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from softwaretestingklasifikator.domain.models import YearData
+
+if TYPE_CHECKING:
+    from softwaretestingklasifikator.domain.models import Student
 
 
 def default_data_dir() -> Path:
@@ -66,3 +70,36 @@ def list_available_years(data_dir: Path) -> list[int]:
         if m:
             years.append(int(m.group(1)))
     return sorted(years)
+
+
+def find_previous_students_batch(
+    data_dir: Path,
+    os_cisla: set[str],
+    current_year: int,
+) -> dict[str, tuple[int, Student]]:
+    """Pro každé os. číslo vrátí mapping → (rok, student) jeho nejnovějšího
+    předchozího výskytu (rok < current_year).
+
+    Implementace: projde roky sestupně, načte každý jen jednou, pro každý
+    rok obslouží všechny ještě nenalezené os. čísla. Vrátí dict os_cislo →
+    (year, Student).
+    """
+
+    result: dict[str, tuple[int, Student]] = {}
+    remaining = set(os_cisla)
+    if not remaining:
+        return result
+    for year in sorted(list_available_years(data_dir), reverse=True):
+        if year >= current_year or not remaining:
+            continue
+        try:
+            data = load_year(data_dir, year)
+        except OSError:
+            continue
+        for s in data.students:
+            if s.os_cislo in remaining:
+                result[s.os_cislo] = (year, s)
+                remaining.discard(s.os_cislo)
+        if not remaining:
+            break
+    return result

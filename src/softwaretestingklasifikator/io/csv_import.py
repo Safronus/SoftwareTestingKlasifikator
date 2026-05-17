@@ -6,11 +6,19 @@ import csv
 from pathlib import Path
 
 from softwaretestingklasifikator.config import (
+    MAX_PROJEKT,
+    MAX_TEST1,
+    MAX_TEST2,
+    POINTS_DECIMALS,
     STAG_CSV_DELIMITER,
     STAG_CSV_ENCODING,
     STAG_CSV_QUOTECHAR,
 )
-from softwaretestingklasifikator.domain.models import Student
+from softwaretestingklasifikator.domain.models import (
+    POKUS_RADNY,
+    BonusBreakdown,
+    Student,
+)
 
 # Sloupce, které z roakce CSV používáme. Ostatní jsou ignorovány.
 ROAKCE_COLUMNS = (
@@ -52,6 +60,33 @@ def read_roakce_csv(path: Path) -> list[Student]:
                 )
             )
     return students
+
+
+def transfer_from_previous(student: Student, previous: Student) -> None:
+    """Přenese hodnocení z minulého ročníku do nového studenta (repetent).
+
+    Pravidla:
+    - test1, test2, projekt: přenese se `prev_test + prev_bonus_test` (uznáno
+      i s bonusem), oříznuto na MAX dané části.
+    - bonus se NEPŘENÁŠÍ (reset na 0).
+    - docházka, komentář, ISTQB CTFL: kopie.
+    - datum_odevzdani, pokus, ukoncil_studium, znamka_override: reset na
+      výchozí (nová klasifikace pro nový rok).
+    """
+    def _r(v: float) -> float:
+        return round(float(v), POINTS_DECIMALS)
+
+    student.test1 = min(MAX_TEST1, _r(previous.test1 + previous.bonus.test1))
+    student.test2 = min(MAX_TEST2, _r(previous.test2 + previous.bonus.test2))
+    student.projekt = min(MAX_PROJEKT, _r(previous.projekt + previous.bonus.projekt))
+    student.bonus = BonusBreakdown()
+    student.dochazka = previous.dochazka  # repetent dostává auto-True i přes tohle
+    student.komentar = previous.komentar
+    student.ma_istqb_ctfl = previous.ma_istqb_ctfl
+    student.datum_odevzdani = None
+    student.pokus = POKUS_RADNY
+    student.ukoncil_studium = False
+    student.znamka_override = None
 
 
 def merge_students(existing: list[Student], imported: list[Student]) -> tuple[list[Student], int, int]:

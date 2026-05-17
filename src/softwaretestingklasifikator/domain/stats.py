@@ -59,22 +59,24 @@ def compute_stats(
     ]
     stats.celkem = len(active)
     for s in active:
-        result = evaluate(s)
+        is_rep = bool(s.os_cislo) and s.os_cislo in repetent_os_cisla
+        result = evaluate(s, is_repetent=is_rep)
         grade = s.znamka_override or result.znamka
         stats.grades[grade] = stats.grades.get(grade, 0) + 1
         stats.pokus_counts[s.pokus] = stats.pokus_counts.get(s.pokus, 0) + 1
-        if s.dochazka:
+        # Repetent má automaticky splněnou docházku (obecné pravidlo).
+        if s.dochazka or is_rep:
             stats.dochazka_splneno += 1
         else:
             stats.dochazka_nesplneno += 1
-        if s.os_cislo and s.os_cislo in repetent_os_cisla:
+        if is_rep:
             stats.repetenti += 1
         if s.ma_istqb_ctfl:
             stats.istqb += 1
         # Splnilo díky bonusu = teď není F, ale bez bonusu by F bylo.
         if grade != "F" and not s.ma_istqb_ctfl and s.bonus.total() > 0:
             without_bonus = replace(s, bonus=BonusBreakdown())
-            if evaluate(without_bonus).znamka == "F":
+            if evaluate(without_bonus, is_repetent=is_rep).znamka == "F":
                 stats.splnilo_diky_bonusu += 1
     return stats
 

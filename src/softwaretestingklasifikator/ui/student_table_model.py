@@ -130,7 +130,7 @@ class StudentTableModel(QAbstractTableModel):
         cached = self._eval_cache.get(row)
         if cached is not None:
             return cached
-        r = evaluate(student)
+        r = evaluate(student, is_repetent=self.is_repetent(student))
         self._eval_cache[row] = r
         return r
 
@@ -300,7 +300,11 @@ class StudentTableModel(QAbstractTableModel):
         key, _, editable, _, _ = COLUMNS[index.column()]
         base = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
         if key in ("dochazka", "istqb", "ukoncil"):
-            base |= Qt.ItemFlag.ItemIsUserCheckable
+            # Repetent má docházku automaticky uznanou — needitovatelnou.
+            if key == "dochazka" and self.is_repetent(self._students[index.row()]):
+                pass
+            else:
+                base |= Qt.ItemFlag.ItemIsUserCheckable
         elif editable:
             base |= Qt.ItemFlag.ItemIsEditable
         return base
@@ -330,7 +334,9 @@ class StudentTableModel(QAbstractTableModel):
         rank = self._top_ranks.get(index.row())
 
         if key == "dochazka" and role == Qt.ItemDataRole.CheckStateRole:
-            return Qt.CheckState.Checked if student.dochazka else Qt.CheckState.Unchecked
+            # Repetent: automaticky uznaná docházka.
+            shown = student.dochazka or repetent
+            return Qt.CheckState.Checked if shown else Qt.CheckState.Unchecked
         if key == "istqb" and role == Qt.ItemDataRole.CheckStateRole:
             return Qt.CheckState.Checked if student.ma_istqb_ctfl else Qt.CheckState.Unchecked
         if key == "ukoncil" and role == Qt.ItemDataRole.CheckStateRole:
@@ -398,7 +404,8 @@ class StudentTableModel(QAbstractTableModel):
             if key == "znamka":
                 return QBrush(GRADE_BG.get(grade, GRADE_BG["F"]))
             if key == "dochazka":
-                return QBrush(DOCHAZKA_OK_BG if student.dochazka else DOCHAZKA_FAIL_BG)
+                ok = student.dochazka or repetent
+                return QBrush(DOCHAZKA_OK_BG if ok else DOCHAZKA_FAIL_BG)
             if key == "pokus":
                 return QBrush(POKUS_BG.get(student.pokus, POKUS_BG["radny"]))
             if key == "projekt_pct":
