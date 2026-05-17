@@ -80,11 +80,11 @@ COLUMNS: tuple[tuple[str, str, bool, int, str], ...] = (
     ("projekt", "Projekt", True, 70, "project"),
     ("projekt_pct", "Projekt %", False, 70, "project"),
     ("bonus_total", "Bonus", True, 150, "bonus"),
+    ("celkem", "Celkem", False, 70, "result"),
+    ("znamka", "Známka", False, 60, "result"),
     ("dochazka", "Docházka", True, 70, "meta"),
     ("datum_odevzdani", "Odevzdání", True, 100, "meta"),
     ("pokus", "Pokus", False, 110, "meta"),
-    ("celkem", "Celkem", False, 70, "result"),
-    ("znamka", "Známka", False, 60, "result"),
     ("rank", "🏆", False, 36, "badge"),
     ("repetent", "REP", False, 50, "badge"),
     ("istqb", "CTFL", True, 60, "badge"),
@@ -404,6 +404,9 @@ class StudentTableModel(QAbstractTableModel):
                 return QBrush(TOP_RANK_BG.get(rank, TOP_RANK_BG[5]))
             if key == "znamka":
                 return QBrush(GRADE_BG.get(grade, GRADE_BG["F"]))
+            if key == "celkem":
+                # Stejná paleta jako Známka — vizuálně spáruje body s grade.
+                return QBrush(GRADE_BG.get(grade, GRADE_BG["F"]))
             if key == "dochazka":
                 if student.dochazka:
                     return QBrush(DOCHAZKA_OK_BG)
@@ -444,6 +447,8 @@ class StudentTableModel(QAbstractTableModel):
             if key == "rank" and rank:
                 return QBrush(TOP_RANK_FG)
             if key == "znamka":
+                return QBrush(GRADE_FG.get(grade, GRADE_FG["F"]))
+            if key == "celkem":
                 return QBrush(GRADE_FG.get(grade, GRADE_FG["F"]))
             if key == "dochazka":
                 return QBrush(Qt.GlobalColor.white)
