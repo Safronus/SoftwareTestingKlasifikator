@@ -16,11 +16,11 @@ from softwaretestingklasifikator.domain.models import (
 )
 from softwaretestingklasifikator.io.csv_import import (
     ProjectDateRow,
-    _derive_pokus_from_date,
     _name_tokens,
     _parse_czech_date,
     apply_project_dates,
     dedup_project_dates,
+    derive_pokus_from_date,
     read_project_dates_csv,
 )
 
@@ -66,7 +66,7 @@ def test_name_tokens_diacritics_insensitive():
                                        second=date(2026, 7, 19)), POKUS_PO_TERMINU),
 ])
 def test_derive_pokus_from_date(d, deadlines, expected):
-    assert _derive_pokus_from_date(d, deadlines) == expected
+    assert derive_pokus_from_date(d, deadlines) == expected
 
 
 def test_apply_sets_date_and_derives_pokus():

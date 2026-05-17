@@ -27,6 +27,7 @@ from softwaretestingklasifikator.domain.models import (
     POKUS_RADNY,
     BonusBreakdown,
     YearData,
+    YearDeadlines,
 )
 from softwaretestingklasifikator.domain.stats import (
     compute_stats,
@@ -40,6 +41,7 @@ from softwaretestingklasifikator.io.csv_import import (
     apply_project_dates,
     apply_test_scores,
     dedup_project_dates,
+    derive_pokus_from_date,
     merge_students,
     read_project_dates_csv,
     read_roakce_csv,
@@ -102,10 +104,6 @@ class MainWindow(QMainWindow):
         self.action_new_year = QAction("➕ Nový ročník", self)
         self.action_new_year.triggered.connect(self._new_year)
         toolbar.addAction(self.action_new_year)
-
-        self.action_edit_year = QAction("Termíny…", self)
-        self.action_edit_year.triggered.connect(self._edit_year_deadlines)
-        toolbar.addAction(self.action_edit_year)
 
         toolbar.addSeparator()
 
@@ -243,6 +241,7 @@ class MainWindow(QMainWindow):
 
         # --- Left dock: statistika ---------------------------------
         self.stats_panel = StatsPanel()
+        self.stats_panel.deadlinesChanged.connect(self._on_deadlines_changed)
         stats_dock = QDockWidget("Statistika ročníku", self)
         stats_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         stats_dock.setWidget(self.stats_panel)
@@ -303,12 +302,12 @@ class MainWindow(QMainWindow):
             self.model.set_students([])
             self.stats_panel.set_stats(compute_stats(YearData(year=0)), deadlines=None)
             for a in (self.action_export, self.action_import, self.action_import_tests,
-                      self.action_import_dates, self.action_edit_year,
+                      self.action_import_dates,
                       self.action_delete_student, self.action_mark_all_dochazka,
                       self.action_reset_year, self.action_delete_year):
                 a.setEnabled(False)
             return
-        for a in (self.action_export, self.action_import, self.action_edit_year,
+        for a in (self.action_export, self.action_import,
                   self.action_delete_student,
                   self.action_reset_year, self.action_delete_year):
             a.setEnabled(True)
@@ -482,18 +481,21 @@ class MainWindow(QMainWindow):
         if info_msg:
             QMessageBox.information(self, "Ročník vytvořen", info_msg)
 
-    def _edit_year_deadlines(self) -> None:
+    def _on_deadlines_changed(self, deadlines: YearDeadlines) -> None:
+        """Reakce na inline editaci termínů ve Statistice ročníku.
+
+        Přepočítá `pokus` u všech studentů s datem odevzdání (řádný /
+        opravný / po termínu podle nových deadlinů), refreshne tabulku,
+        statistiku a status bar a uloží."""
         if self._current_year_data is None:
             return
-        dlg = YearConfigDialog(
-            self,
-            year=self._current_year_data.year,
-            deadlines=self._current_year_data.deadlines,
-            edit_only_deadlines=True,
-        )
-        if dlg.exec() != YearConfigDialog.DialogCode.Accepted:
-            return
-        self._current_year_data.deadlines = dlg.selected_deadlines()
+        self._current_year_data.deadlines = deadlines
+        for s in self._current_year_data.students:
+            if s.datum_odevzdani is not None:
+                s.pokus = derive_pokus_from_date(s.datum_odevzdani, deadlines)
+        # set_students (stejná reference) → beginResetModel/endResetModel →
+        # invalidace cache → re-render tabulky. Sort indikátor zůstává.
+        self.model.set_students(self._current_year_data.students)
         self._save_now()
         self._update_status_for_year()
 

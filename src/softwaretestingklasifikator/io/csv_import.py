@@ -213,7 +213,7 @@ def read_project_dates_csv(path: Path) -> list[ProjectDateRow]:
     return rows
 
 
-def _derive_pokus_from_date(
+def derive_pokus_from_date(
     submission_date: date | None,
     deadlines: YearDeadlines | None,
 ) -> str:
@@ -274,7 +274,7 @@ def apply_project_dates(
             continue
         result.matched += 1
         student.datum_odevzdani = r.submission_date
-        student.pokus = _derive_pokus_from_date(r.submission_date, deadlines)
+        student.pokus = derive_pokus_from_date(r.submission_date, deadlines)
         if r.submission_date is None:
             result.set_neodevzdal += 1
         else:

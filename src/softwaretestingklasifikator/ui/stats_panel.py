@@ -1,19 +1,28 @@
-"""Dock widget se statistikou ročníku — známky, splnilo, odevzdal, repetenti."""
+"""Dock widget se statistikou ročníku — známky, splnilo, odevzdal, repetenti.
+
+Termíny odevzdání jsou editovatelné přímo zde (perzistentní QDateEdit
+widgety, které přežijí rebuild statistik). Změny se okamžitě hlásí
+parentovi přes signál `deadlinesChanged`.
+"""
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from datetime import date
+
+from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
+    QDateEdit,
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
-from softwaretestingklasifikator.config import DATE_FORMAT_PY
+from softwaretestingklasifikator.config import DATE_FORMAT_QT
 from softwaretestingklasifikator.domain.models import (
     POKUS_LABELS,
     POKUS_NEODEVZDAL,
@@ -77,44 +86,140 @@ def _make_section_title(text: str) -> QLabel:
 
 
 class StatsPanel(QWidget):
-    """Pravý dolní dock se statistikou ročníku.
+    """Levý dock se statistikou ročníku.
 
-    Strategie: vnitřní `_inner` widget je vždy kompletně nahrazen
-    (re-create) — bez `takeAt`/`deleteLater` race se starými prvky.
-    """
+    Strategie: vnitřní `_inner` widget (počty, graf, repetenti, …) se
+    vždy kompletně nahrazuje (re-create) — bez `takeAt`/`deleteLater`
+    race se starými prvky. Termíny odevzdání jsou ale **perzistentní**,
+    aby je rebuild stats nezničil uprostřed uživatelovy editace."""
+
+    deadlinesChanged = Signal(object)  # YearDeadlines
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._committed_deadlines = YearDeadlines()
+
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
+
+        # Perzistentní editor termínů (přežije set_stats rebuildy).
+        self._deadlines_widget = self._build_deadlines_widget()
+        outer.addWidget(self._deadlines_widget)
+        self._deadlines_widget.hide()
+
         self._inner: QWidget | None = None
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding,
+        )
         self.set_stats(YearStats())
 
+    # ------------------------------------------------------------------
+    # Persistent deadline editor
+    # ------------------------------------------------------------------
+    def _build_deadlines_widget(self) -> QWidget:
+        w = QWidget(self)
+        v = QVBoxLayout(w)
+        v.setContentsMargins(8, 8, 8, 0)
+        v.setSpacing(2)
+        v.addWidget(_make_section_title("Termíny odevzdání"))
+
+        grid = QGridLayout()
+        grid.setSpacing(2)
+
+        grid.addWidget(_make_cell(
+            "1. termín", QColor(146, 208, 80), QColor(20, 60, 20), bold=True,
+        ), 0, 0)
+        self.date_first = QDateEdit()
+        self._configure_date_edit(self.date_first)
+        grid.addWidget(self.date_first, 0, 1)
+
+        grid.addWidget(_make_cell(
+            "Opravný", QColor(246, 178, 107), QColor(90, 50, 10), bold=True,
+        ), 1, 0)
+        self.date_second = QDateEdit()
+        self._configure_date_edit(self.date_second)
+        grid.addWidget(self.date_second, 1, 1)
+
+        v.addLayout(grid)
+        return w
+
+    def _configure_date_edit(self, de: QDateEdit) -> None:
+        de.setDisplayFormat(DATE_FORMAT_QT)
+        de.setCalendarPopup(True)
+        de.setSpecialValueText("—")
+        de.setMinimumDate(QDate(2000, 1, 1))
+        # Commit jen po dokončení editace (Enter / focus-out / kalendář).
+        # Použití dateChanged by způsobilo rebuild panelu při každém stisku
+        # klávesy, což by ukradlo focus uprostřed psaní.
+        de.editingFinished.connect(self._on_editing_finished)
+        # Kalendářový pop-up vrací nezpracovanou hodnotu přes dateChanged
+        # AŽ KDYŽ se popup zavře a focus odejde — to už pokryje editingFinished.
+
+    def _collect_deadlines(self) -> YearDeadlines:
+        def from_de(de: QDateEdit) -> date | None:
+            if de.date() == de.minimumDate():
+                return None
+            qd = de.date()
+            return date(qd.year(), qd.month(), qd.day())
+
+        return YearDeadlines(
+            first=from_de(self.date_first),
+            second=from_de(self.date_second),
+        )
+
+    def _apply_deadlines_silently(self, dl: YearDeadlines) -> None:
+        """Naplnit pickery hodnotami bez vyvolání signálu (sync z parentu)."""
+        for de, val in ((self.date_first, dl.first), (self.date_second, dl.second)):
+            de.blockSignals(True)
+            if val is None:
+                de.setDate(de.minimumDate())
+            else:
+                de.setDate(QDate(val.year, val.month, val.day))
+            de.blockSignals(False)
+
+    def _on_editing_finished(self) -> None:
+        new = self._collect_deadlines()
+        # Validace: pokud jsou nastavené oba, opravný musí být po řádném.
+        if (
+            new.first is not None
+            and new.second is not None
+            and new.second <= new.first
+        ):
+            QMessageBox.warning(
+                self,
+                "Neplatné termíny",
+                "Deadline 2. pokusu (opravný) musí být později než "
+                "deadline 1. pokusu.",
+            )
+            self._apply_deadlines_silently(self._committed_deadlines)
+            return
+        if new == self._committed_deadlines:
+            return
+        self._committed_deadlines = new
+        self.deadlinesChanged.emit(new)
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
     def set_stats(self, stats: YearStats, deadlines: YearDeadlines | None = None) -> None:
-        # Nahradíme celý vnitřní widget — žádné race s deleteLater.
+        # 1) Sync perzistentního editoru termínů.
+        if deadlines is None:
+            self._deadlines_widget.hide()
+            # Nepřepisuj _committed (rok není načtený) — sync ale pickery,
+            # aby případný flash zobrazení nezmátl uživatele.
+            self._committed_deadlines = YearDeadlines()
+            self._apply_deadlines_silently(self._committed_deadlines)
+        else:
+            self._deadlines_widget.show()
+            self._committed_deadlines = deadlines
+            self._apply_deadlines_silently(deadlines)
+
+        # 2) Rebuild dynamické části (počty, graf, repetenti, …).
         new_inner = QWidget(self)
         layout = QVBoxLayout(new_inner)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(8, 4, 8, 8)
         layout.setSpacing(6)
-
-        # Deadliny (nahoře)
-        if deadlines is not None and (deadlines.first or deadlines.second):
-            layout.addWidget(_make_section_title("Termíny odevzdání"))
-            dl_grid = QGridLayout()
-            dl_grid.setSpacing(0)
-            dl_grid.addWidget(_make_cell(
-                "1. termín", QColor(146, 208, 80), QColor(20, 60, 20), bold=True), 0, 0)
-            dl_grid.addWidget(_make_cell(
-                deadlines.first.strftime(DATE_FORMAT_PY) if deadlines.first else "—",
-                QColor(245, 245, 245), QColor(40, 40, 40), bold=False), 0, 1)
-            dl_grid.addWidget(_make_cell(
-                "Opravný", QColor(246, 178, 107), QColor(90, 50, 10), bold=True), 1, 0)
-            dl_grid.addWidget(_make_cell(
-                deadlines.second.strftime(DATE_FORMAT_PY) if deadlines.second else "—",
-                QColor(245, 245, 245), QColor(40, 40, 40), bold=False), 1, 1)
-            layout.addLayout(dl_grid)
 
         # Známky — tabulka + sloupcový graf
         layout.addWidget(_make_section_title("Počet známek"))
@@ -130,7 +235,7 @@ class StatsPanel(QWidget):
             )
         layout.addLayout(grade_grid)
 
-        chart = GradeChart(new_inner)  # explicit parent → žádný brief floating widget
+        chart = GradeChart(new_inner)
         chart.set_counts(stats.grades)
         layout.addWidget(chart, 0, Qt.AlignmentFlag.AlignHCenter)
 
@@ -195,9 +300,8 @@ class StatsPanel(QWidget):
 
         layout.addStretch(1)
 
-        # Swap inner widget. hide() PŘED removeWidget zajistí, že starý widget
-        # neblikne jako floating top-level okno. setParent(None) bylo dřív
-        # použito, ale ten z widgetu udělá top-level → krátké okýnko vyskočí.
+        # Swap inner. hide() PŘED removeWidget zajistí, že starý widget
+        # neblikne jako floating top-level okno.
         if self._inner is not None:
             self._inner.hide()
             self.layout().removeWidget(self._inner)
