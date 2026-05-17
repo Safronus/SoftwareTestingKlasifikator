@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import csv
+import re
 import unicodedata
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 from softwaretestingklasifikator.config import (
@@ -17,10 +19,21 @@ from softwaretestingklasifikator.config import (
     STAG_CSV_QUOTECHAR,
 )
 from softwaretestingklasifikator.domain.models import (
+    POKUS_NEODEVZDAL,
+    POKUS_OPRAVNY,
+    POKUS_PO_TERMINU,
     POKUS_RADNY,
     BonusBreakdown,
     Student,
+    YearDeadlines,
 )
+
+# České názvy měsíců v 2. pádu (jak je formátuje Moodle: "9. května 2026").
+CZECH_MONTHS_GENITIVE: dict[str, int] = {
+    "ledna": 1, "února": 2, "března": 3, "dubna": 4,
+    "května": 5, "června": 6, "července": 7, "srpna": 8,
+    "září": 9, "října": 10, "listopadu": 11, "prosince": 12,
+}
 
 
 def _norm_name(s: str | None) -> str:
@@ -33,6 +46,46 @@ def _norm_name(s: str | None) -> str:
         .decode("ascii")
     )
     return ascii_form.strip().lower()
+
+
+def _name_tokens(*parts: str) -> frozenset[str]:
+    """Vrátí frozenset normalizovaných slov ze všech vstupů.
+
+    Pro studenta voláno jako `_name_tokens(s.jmeno, s.prijmeni)`.
+    Pro CSV řádek s celým názvem jako `_name_tokens(full_name)`.
+    Robustní vůči víceslovým jménům typu „Theodor Jaroslav Krokavec".
+    """
+    tokens: set[str] = set()
+    for p in parts:
+        for word in (p or "").split():
+            n = _norm_name(word)
+            if n:
+                tokens.add(n)
+    return frozenset(tokens)
+
+
+def _parse_czech_date(text: str | None) -> date | None:
+    """Parsuje datum ze stringu typu „Sobota, 9. května 2026, 20.33".
+
+    Vrací jen `date` (čas se zahazuje). Vrátí None pro None/'-'/prázdné/
+    neparsovatelné.
+    """
+    if not text:
+        return None
+    t = text.strip()
+    if t in ("", "-", "—", "–"):
+        return None
+    m = re.search(r"(\d{1,2})\.\s*(\w+)\s+(\d{4})", t)
+    if not m:
+        return None
+    day, month_name, year = m.group(1), m.group(2).lower(), m.group(3)
+    month = CZECH_MONTHS_GENITIVE.get(month_name)
+    if month is None:
+        return None
+    try:
+        return date(int(year), month, int(day))
+    except ValueError:
+        return None
 
 # Sloupce, které z roakce CSV používáme. Ostatní jsou ignorovány.
 ROAKCE_COLUMNS = (
@@ -66,9 +119,135 @@ def read_roakce_csv(path: Path) -> list[Student]:
                     os_cislo=os_cislo,
                     jmeno=(row.get("jmeno") or "").strip(),
                     prijmeni=(row.get("prijmeni") or "").strip(),
+                    # Default po importu — student zatím nic neodevzdal.
+                    # Pokus se případně přepíše dle skutečnosti (project dates
+                    # import nebo ruční edit).
+                    pokus=POKUS_NEODEVZDAL,
                 )
             )
     return students
+
+
+@dataclass
+class ProjectDateRow:
+    """Jeden řádek z Moodle CSV s daty odevzdání projektu."""
+
+    __test__ = False
+
+    full_name: str
+    submission_date: date | None  # None = neodevzdal ('-')
+
+
+@dataclass
+class ProjectDateImportResult:
+    __test__ = False
+
+    files_processed: int = 0
+    rows_total: int = 0
+    matched: int = 0
+    set_date: int = 0       # studentům nastaveno datum
+    set_neodevzdal: int = 0  # studentům nastaven status neodevzdal (žádné datum)
+    unmatched: list[str] = field(default_factory=list)
+    files_with_errors: list[tuple[str, str]] = field(default_factory=list)
+
+
+def read_project_dates_csv(path: Path) -> list[ProjectDateRow]:
+    """Načte Moodle CSV s daty odevzdání projektu.
+
+    Očekává sloupce: `Celý název` + `Poslední změna (odevzdaný úkol)`.
+    Kódování UTF-8 (s BOM toleruje), oddělovač čárka.
+    """
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        fields = list(reader.fieldnames or [])
+        name_col = _find_column(fields, "Celý název", "celý název")
+        date_col = _find_column(
+            fields,
+            "Poslední změna (odevzdaný úkol)",
+            "Poslední změna",
+            "Submission date",
+        )
+        if not name_col or not date_col:
+            raise ValueError(
+                "CSV neobsahuje sloupce 'Celý název' a 'Poslední změna "
+                "(odevzdaný úkol)'. Nalezené: " + ", ".join(fields)
+            )
+        rows: list[ProjectDateRow] = []
+        for raw in reader:
+            rows.append(ProjectDateRow(
+                full_name=(raw.get(name_col) or "").strip(),
+                submission_date=_parse_czech_date(raw.get(date_col)),
+            ))
+    return rows
+
+
+def _derive_pokus_from_date(
+    submission_date: date | None,
+    deadlines: YearDeadlines | None,
+) -> str:
+    """Odvodí pokus podle data odevzdání a deadlinů ročníku.
+
+    None → neodevzdal. <= 1. deadline → radny. <= 2. deadline → opravny.
+    Jinak po termínu. Když deadliny nejsou nastavené a datum existuje,
+    spadne na řádný pokus (neumíme rozhodnout).
+    """
+    if submission_date is None:
+        return POKUS_NEODEVZDAL
+    if deadlines is None:
+        return POKUS_RADNY
+    if deadlines.first and submission_date <= deadlines.first:
+        return POKUS_RADNY
+    if deadlines.second and submission_date <= deadlines.second:
+        return POKUS_OPRAVNY
+    if deadlines.first or deadlines.second:
+        return POKUS_PO_TERMINU
+    return POKUS_RADNY
+
+
+def apply_project_dates(
+    students: list[Student],
+    rows: list[ProjectDateRow],
+    deadlines: YearDeadlines | None = None,
+    result: ProjectDateImportResult | None = None,
+) -> ProjectDateImportResult:
+    """Zapíše data odevzdání do studentů.
+
+    Matchuje podle slovní množiny celého jména (CSV: full_name) vs.
+    studentova jmeno + prijmeni — robustní vůči víceslovým jménům.
+    Studenti, kteří v CSV nejsou, se nemění.
+
+    Pravidla:
+    - CSV má datum → student dostane `datum_odevzdani` (jen den, čas se
+      zahazuje) a `pokus` se odvodí podle deadlinů (radny/opravny/po_terminu).
+    - CSV má '-' → `datum_odevzdani = None`, `pokus = neodevzdal`.
+
+    Akumulace do volitelně předaného `result` — pro multi-file import.
+    """
+    if result is None:
+        result = ProjectDateImportResult()
+    # Index studentů podle token-setu jejich celého jména.
+    by_tokens: dict[frozenset[str], Student] = {}
+    for s in students:
+        key = _name_tokens(s.jmeno, s.prijmeni)
+        if key and key not in by_tokens:
+            by_tokens[key] = s
+
+    result.files_processed += 1
+    result.rows_total += len(rows)
+    for r in rows:
+        key = _name_tokens(r.full_name)
+        student = by_tokens.get(key)
+        if student is None:
+            result.unmatched.append(r.full_name)
+            continue
+        result.matched += 1
+        student.datum_odevzdani = r.submission_date
+        student.pokus = _derive_pokus_from_date(r.submission_date, deadlines)
+        if r.submission_date is None:
+            result.set_neodevzdal += 1
+        else:
+            result.set_date += 1
+    return result
 
 
 @dataclass
@@ -236,9 +415,11 @@ def transfer_from_previous(student: Student, previous: Student) -> None:
     if not student.dochazka:
         student.dochazka = previous.dochazka
 
-    # Stavy spjaté s aktuálním rokem — vždy reset.
+    # Stavy spjaté s aktuálním rokem — vždy reset. Pokus default NEODEVZDAL
+    # (student zatím nic v novém roce neodevzdal), případně se přepíše importem
+    # dat odevzdání nebo ručně.
     student.datum_odevzdani = None
-    student.pokus = POKUS_RADNY
+    student.pokus = POKUS_NEODEVZDAL
     student.ukoncil_studium = False
     student.znamka_override = None
 

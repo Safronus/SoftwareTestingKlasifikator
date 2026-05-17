@@ -74,13 +74,14 @@ def test_transfer_failed_test_zustava_failed():
 
 def test_transfer_resetuje_stav():
     from datetime import date
-    prev = _make_prev(test1=20, test2=20, projekt=100, pokus=POKUS_NEODEVZDAL)
+    prev = _make_prev(test1=20, test2=20, projekt=100, pokus=POKUS_RADNY)
     prev.datum_odevzdani = date(2025, 5, 12)
     prev.ukoncil_studium = True
     prev.znamka_override = "A"
     new = Student(os_cislo="A1", jmeno="A", prijmeni="B")
     transfer_from_previous(new, prev)
-    assert new.pokus == POKUS_RADNY
+    # Default po transferu — student v novém roce zatím nic neodevzdal.
+    assert new.pokus == POKUS_NEODEVZDAL
     assert new.datum_odevzdani is None
     assert new.ukoncil_studium is False
     assert new.znamka_override is None

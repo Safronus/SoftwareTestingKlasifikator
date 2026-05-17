@@ -34,8 +34,11 @@ from softwaretestingklasifikator.domain.stats import (
 )
 from softwaretestingklasifikator.io.csv_export import export_to_predmet_csv
 from softwaretestingklasifikator.io.csv_import import (
+    ProjectDateImportResult,
+    apply_project_dates,
     apply_test_scores,
     merge_students,
+    read_project_dates_csv,
     read_roakce_csv,
     read_test_scores_csv,
     transfer_from_previous,
@@ -114,6 +117,15 @@ class MainWindow(QMainWindow):
         )
         self.action_import_tests.triggered.connect(self._import_test_scores)
         toolbar.addAction(self.action_import_tests)
+
+        self.action_import_dates = QAction("📅 Import dat odevzdání (CSV)", self)
+        self.action_import_dates.setToolTip(
+            "Naimportuje data odevzdání projektu z jednoho nebo více Moodle CSV. "
+            "Spáruje studenty podle celého jména. Studentům bez data se nastaví "
+            "stav Neodevzdal."
+        )
+        self.action_import_dates.triggered.connect(self._import_project_dates)
+        toolbar.addAction(self.action_import_dates)
 
         self.action_export = QAction("📤 Export hodnocení (CSV)", self)
         self.action_export.triggered.connect(self._export_predmet)
@@ -269,7 +281,7 @@ class MainWindow(QMainWindow):
             self.model.set_students([])
             self.stats_panel.set_stats(compute_stats(YearData(year=0)), deadlines=None)
             for a in (self.action_export, self.action_import, self.action_import_tests,
-                      self.action_edit_year,
+                      self.action_import_dates, self.action_edit_year,
                       self.action_delete_student,
                       self.action_reset_year, self.action_delete_year):
                 a.setEnabled(False)
@@ -591,6 +603,63 @@ class MainWindow(QMainWindow):
         self._update_status(
             f'„{name}" označen jako repetent. '
             f'Body přeneseny z ročníku {prev_year}.'
+        )
+
+    def _import_project_dates(self) -> None:
+        if self._current_year_data is None:
+            return
+        paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Import dat odevzdání projektu (jeden nebo více CSV)",
+            str(Path.home()),
+            "CSV (*.csv);;Všechny soubory (*)",
+        )
+        if not paths:
+            return
+
+        result = ProjectDateImportResult()
+        for path_str in paths:
+            try:
+                rows = read_project_dates_csv(Path(path_str))
+            except Exception as exc:  # noqa: BLE001
+                result.files_with_errors.append((Path(path_str).name, str(exc)))
+                continue
+            apply_project_dates(
+                self._current_year_data.students,
+                rows,
+                deadlines=self._current_year_data.deadlines,
+                result=result,
+            )
+
+        # Refresh tabulky + persist.
+        self.model.set_students(self._current_year_data.students)
+        prijmeni_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "prijmeni"), 1)
+        self.table.sortByColumn(prijmeni_col, Qt.SortOrder.AscendingOrder)
+        self._refresh_stats()
+        self._apply_row_visibility()
+        self._save_now()
+
+        msg_lines = [
+            f"Zpracováno souborů: {result.files_processed}",
+            f"Načteno řádků celkem: {result.rows_total}",
+            f"Spárováno se studenty ročníku: {result.matched}",
+            f"  ⤷ s datem odevzdání: {result.set_date}",
+            f"  ⤷ označeno jako Neodevzdal: {result.set_neodevzdal}",
+        ]
+        if result.unmatched:
+            msg_lines.append(
+                f"\nNenalezeno v ročníku: {len(result.unmatched)}"
+            )
+            for n in result.unmatched[:10]:
+                msg_lines.append(f"  · {n}")
+            if len(result.unmatched) > 10:
+                msg_lines.append(f"  … a dalších {len(result.unmatched) - 10}")
+        if result.files_with_errors:
+            msg_lines.append("\nChyby při čtení souborů:")
+            for fname, err in result.files_with_errors:
+                msg_lines.append(f"  · {fname}: {err}")
+        QMessageBox.information(
+            self, "Import dat odevzdání", "\n".join(msg_lines)
         )
 
     def _import_test_scores(self) -> None:
