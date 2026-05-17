@@ -32,7 +32,7 @@ from softwaretestingklasifikator.domain.stats import (
     previous_years_os_cisla,
     top_n_indices,
 )
-from softwaretestingklasifikator.io.csv_export import export_to_predmet_csv
+from softwaretestingklasifikator.io.csv_export import export_via_template_csv
 from softwaretestingklasifikator.io.csv_import import (
     ProjectDateImportResult,
     apply_project_dates,
@@ -778,21 +778,61 @@ class MainWindow(QMainWindow):
     def _export_predmet(self) -> None:
         if self._current_year_data is None:
             return
-        default_name = f"hodnoceni_{self._current_year_data.year}.csv"
-        path_str, _ = QFileDialog.getSaveFileName(
+        # 1. Vyber nosný (template) CSV od STAGu.
+        template_str, _ = QFileDialog.getOpenFileName(
             self,
-            "Export hodnocení (SeznamStudentuNaPredmetu CSV)",
-            str(Path.home() / default_name),
+            "Export hodnocení — vyber nosné CSV ze STAGu (SeznamStudentuNaPredmetu)",
+            str(Path.home()),
+            "CSV ze STAGu (*.csv);;Všechny soubory (*)",
+        )
+        if not template_str:
+            return
+
+        # 2. Kam uložit výstup. Default = vedle template s prefixem "export_".
+        template_path = Path(template_str)
+        default_out = template_path.with_name(f"export_{template_path.name}")
+        output_str, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export hodnocení — kam uložit výsledný CSV",
+            str(default_out),
             "CSV pro STAG (*.csv);;Všechny soubory (*)",
         )
-        if not path_str:
+        if not output_str:
             return
+
         try:
-            count = export_to_predmet_csv(Path(path_str), self._current_year_data)
+            result = export_via_template_csv(
+                template_path,
+                Path(output_str),
+                self._current_year_data,
+            )
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "Chyba exportu", f"Export selhal:\n{exc}")
+            QMessageBox.critical(
+                self, "Chyba exportu", f"Export selhal:\n{exc}",
+            )
             return
-        QMessageBox.information(self, "Export dokončen", f"Zapsáno {count} řádků do:\n{path_str}")
+
+        msg_lines = [
+            f"Uloženo: {output_str}",
+            "",
+            f"Studentů zapsáno do CSV: {result.updated}",
+        ]
+        if result.csv_only_unchanged:
+            msg_lines.append(
+                f"Řádků v CSV mimo aplikaci (ponecháno beze změny): "
+                f"{result.csv_only_unchanged}"
+            )
+        if result.app_only:
+            msg_lines.append(
+                f"\nStudentů v aplikaci, kteří NEJSOU v CSV "
+                f"(přeskočeno): {len(result.app_only)}"
+            )
+            for s in result.app_only[:15]:
+                name = s.display_name() or s.os_cislo
+                msg_lines.append(f"  · {name} ({s.os_cislo})")
+            if len(result.app_only) > 15:
+                msg_lines.append(f"  … a dalších {len(result.app_only) - 15}")
+        QMessageBox.information(self, "Export dokončen", "\n".join(msg_lines))
 
     # ------------------------------------------------------------------
     def closeEvent(self, event) -> None:  # noqa: N802

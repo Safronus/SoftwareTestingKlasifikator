@@ -9,8 +9,7 @@ from softwaretestingklasifikator.config import (
     STAG_CSV_ENCODING,
     STAG_CSV_QUOTECHAR,
 )
-from softwaretestingklasifikator.domain.models import Student, YearData
-from softwaretestingklasifikator.io.csv_export import PREDMET_COLUMNS, export_to_predmet_csv
+from softwaretestingklasifikator.domain.models import Student
 from softwaretestingklasifikator.io.csv_import import merge_students, read_roakce_csv
 
 ROAKCE_HEADERS = (
@@ -84,28 +83,3 @@ def test_merge_does_not_overwrite_points():
     assert merged[0].projekt == 140
 
 
-def test_export_predmet_csv_roundtrip(tmp_path):
-    students = [
-        Student(os_cislo="A1", jmeno="Eva", prijmeni="N",
-                test1=25, test2=25, projekt=150, dochazka=True),
-        Student(os_cislo="A2", jmeno="Petr", prijmeni="S",
-                test1=14, test2=20, projekt=100, dochazka=True),  # T1 < 15 → F
-    ]
-    data = YearData(year=2026, students=students)
-    out_path = tmp_path / "export.csv"
-    count = export_to_predmet_csv(out_path, data)
-    assert count == 2
-
-    # Načteme zpět a ověříme strukturu
-    with open(out_path, encoding=STAG_CSV_ENCODING, newline="") as f:
-        reader = csv.DictReader(f, delimiter=STAG_CSV_DELIMITER, quotechar=STAG_CSV_QUOTECHAR)
-        rows = list(reader)
-    assert len(rows) == 2
-    assert list(reader.fieldnames or []) == list(PREDMET_COLUMNS)
-    r1 = rows[0]
-    assert r1["os_cislo"] == "A1"
-    assert r1["zk_hodnoceni"] == "A"
-    assert float(r1["zk_body"]) == 200
-    assert rows[1]["zk_hodnoceni"] == "F"
-    # STAG year = academic_year - 1
-    assert r1["rok"] == "2025"
