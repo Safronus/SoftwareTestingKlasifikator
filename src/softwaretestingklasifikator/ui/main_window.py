@@ -179,15 +179,17 @@ class MainWindow(QMainWindow):
             }
             """
         )
-        header = self.table.horizontalHeader()
-        # Interactive (uživatel si může roztáhnout) + last section (Komentář)
-        # vyplní zbytek. Důležité kvůli scroll-performance: ResizeToContents
-        # by si při každém scrollu přepočítával šířky všech sloupců.
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        header.setStretchLastSection(True)
         self.table.verticalHeader().setDefaultSectionSize(26)
         self.model = StudentTableModel(parent=self)
         self.table.setModel(self.model)
+        # Resize modes lze nastavit až po setModel — předtím nejsou sloupce
+        # registrované v headeru.
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+        komentar_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "komentar"), None)
+        if komentar_col is not None:
+            header.setSectionResizeMode(komentar_col, QHeaderView.ResizeMode.Stretch)
         self.model.studentChanged.connect(self._schedule_autosave)
         self.model.studentChanged.connect(lambda *_: self._refresh_stats())
         self.model.studentChanged.connect(lambda *_: self._apply_row_visibility())

@@ -48,6 +48,9 @@ POKUS_FG: dict[str, QColor] = {
 # Docházka splněno / nesplněno.
 DOCHAZKA_OK_BG = QColor(146, 208, 80)
 DOCHAZKA_FAIL_BG = QColor(204, 70, 70)
+# Pro repetenta, kterému je docházka uznána automaticky — mírně světlejší
+# zelená se žlutavým nádechem, ať je vidět rozdíl od ručně potvrzené.
+DOCHAZKA_REPETENT_OK_BG = QColor(195, 225, 145)
 
 
 # Testy 1/2 — barevné odlišení podle stavu splnění brány.

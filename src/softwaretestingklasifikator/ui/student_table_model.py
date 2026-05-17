@@ -28,6 +28,7 @@ from softwaretestingklasifikator.domain.models import (
 from softwaretestingklasifikator.ui.theme import (
     DOCHAZKA_FAIL_BG,
     DOCHAZKA_OK_BG,
+    DOCHAZKA_REPETENT_OK_BG,
     GRADE_BG,
     GRADE_FG,
     GROUP_BG,
@@ -404,8 +405,13 @@ class StudentTableModel(QAbstractTableModel):
             if key == "znamka":
                 return QBrush(GRADE_BG.get(grade, GRADE_BG["F"]))
             if key == "dochazka":
-                ok = student.dochazka or repetent
-                return QBrush(DOCHAZKA_OK_BG if ok else DOCHAZKA_FAIL_BG)
+                if student.dochazka:
+                    return QBrush(DOCHAZKA_OK_BG)
+                if repetent:
+                    # Auto-uznáno jako repetent — světlejší odstín, ať je vidět
+                    # rozdíl od ručně potvrzené docházky.
+                    return QBrush(DOCHAZKA_REPETENT_OK_BG)
+                return QBrush(DOCHAZKA_FAIL_BG)
             if key == "pokus":
                 return QBrush(POKUS_BG.get(student.pokus, POKUS_BG["radny"]))
             if key == "projekt_pct":
