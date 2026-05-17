@@ -31,11 +31,14 @@ class YearConfigDialog(QDialog):
         *,
         year: int | None = None,
         deadlines: YearDeadlines | None = None,
-        existing_years: set[int] | None = None,
+        blocking_years: set[int] | None = None,
         edit_only_deadlines: bool = False,
     ) -> None:
         super().__init__(parent)
-        self._existing_years = existing_years or set()
+        # blocking_years jsou roky, do kterých už nelze nový ročník vytvořit
+        # (typicky ty, které obsahují studenty). Prázdné existující roky NEJSOU
+        # blokující — lze do nich naimportovat.
+        self._blocking_years = blocking_years or set()
         self._csv_path: Path | None = None
         self._edit_only_deadlines = edit_only_deadlines
         self.setWindowTitle("Ročník — nastavení")
@@ -62,18 +65,20 @@ class YearConfigDialog(QDialog):
         self.date_second.setSpecialValueText("—")
         self.date_second.setMinimumDate(QDate(2000, 1, 1))
 
-        if deadlines:
-            if deadlines.first:
-                self.date_first.setDate(QDate(deadlines.first.year, deadlines.first.month, deadlines.first.day))
-            else:
-                self.date_first.setDate(self.date_first.minimumDate())
-            if deadlines.second:
-                self.date_second.setDate(QDate(deadlines.second.year, deadlines.second.month, deadlines.second.day))
-            else:
-                self.date_second.setDate(self.date_second.minimumDate())
+        # Defaultně dnes (řádný) a dnes + 60 dní (opravný) — typicky deadline
+        # ~květen (řádný) a ~červenec (opravný). Pokud `deadlines` má hodnoty,
+        # použijí se. Pokud má None, předvolí se dnes / dnes+60d (ne "—"),
+        # aby se uživatel nemusel proklikávat kalendářem.
+        today = QDate.currentDate()
+        plus_60 = today.addDays(60)
+        if deadlines and deadlines.first:
+            self.date_first.setDate(QDate(deadlines.first.year, deadlines.first.month, deadlines.first.day))
         else:
-            self.date_first.setDate(self.date_first.minimumDate())
-            self.date_second.setDate(self.date_second.minimumDate())
+            self.date_first.setDate(today)
+        if deadlines and deadlines.second:
+            self.date_second.setDate(QDate(deadlines.second.year, deadlines.second.month, deadlines.second.day))
+        else:
+            self.date_second.setDate(plus_60)
 
         form.addRow("Deadline 1. pokusu:", self.date_first)
         form.addRow("Deadline 2. pokusu:", self.date_second)
@@ -124,10 +129,27 @@ class YearConfigDialog(QDialog):
         self.csv_edit.clear()
 
     def _on_accept(self) -> None:
-        if self.spin_year.isEnabled() and self.spin_year.value() in self._existing_years:
-            from PySide6.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
 
-            QMessageBox.warning(self, "Ročník existuje", f"Pro rok {self.spin_year.value()} už soubor existuje.")
+        if self.spin_year.isEnabled() and self.spin_year.value() in self._blocking_years:
+            QMessageBox.warning(
+                self,
+                "Ročník již obsahuje studenty",
+                f"Pro rok {self.spin_year.value()} už existuje záznam se studenty. "
+                f"Vyber jiný rok, nebo aktuální studenty nejdřív smaž / vynuluj.",
+            )
+            return
+        deadlines = self.selected_deadlines()
+        if (
+            deadlines.first is not None
+            and deadlines.second is not None
+            and deadlines.second <= deadlines.first
+        ):
+            QMessageBox.warning(
+                self,
+                "Neplatné termíny",
+                "Deadline 2. pokusu (opravný) musí být později než deadline 1. pokusu.",
+            )
             return
         self.accept()
 

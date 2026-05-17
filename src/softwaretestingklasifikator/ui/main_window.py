@@ -325,9 +325,31 @@ class MainWindow(QMainWindow):
         self.status_label.setText(msg)
 
     def _new_year(self) -> None:
-        existing = set(list_available_years(self.data_dir))
-        dlg = YearConfigDialog(self, year=max(existing) + 1 if existing else date.today().year,
-                               existing_years=existing)
+        all_years = list_available_years(self.data_dir)
+        # Blokující roky = ty, které už mají studenty (do nich nelze).
+        # Prázdné existující roky NEjsou blokující — můžeme do nich naimportovat.
+        non_empty: set[int] = set()
+        for y in all_years:
+            if load_year(self.data_dir, y).students:
+                non_empty.add(y)
+
+        # Default rok = první kalendářní rok ≥ dnešní, který není blokující.
+        # (typicky: dnes je 2026, 2026 existuje prázdný → default 2026)
+        default_year = date.today().year
+        while default_year in non_empty:
+            default_year += 1
+
+        # Pre-fill deadlinů z existujícího prázdného ročníku (pokud jsou).
+        existing_deadlines = None
+        if default_year in all_years:
+            existing_deadlines = load_year(self.data_dir, default_year).deadlines
+
+        dlg = YearConfigDialog(
+            self,
+            year=default_year,
+            deadlines=existing_deadlines,
+            blocking_years=non_empty,
+        )
         if dlg.exec() != YearConfigDialog.DialogCode.Accepted:
             return
         year = dlg.selected_year()
