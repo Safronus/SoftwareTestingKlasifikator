@@ -72,6 +72,35 @@ def list_available_years(data_dir: Path) -> list[int]:
     return sorted(years)
 
 
+def find_previous_student_by_name(
+    data_dir: Path,
+    jmeno: str,
+    prijmeni: str,
+    current_year: int,
+) -> tuple[int, Student] | None:
+    """Najde nejnovější předchozí výskyt studenta podle jména + příjmení.
+
+    Porovnává jména po normalizaci (lowercase + bez diakritiky). Vrací None
+    pokud student se v žádném dřívějším roce nevyskytl.
+    """
+    from softwaretestingklasifikator.io.csv_import import _norm_name
+
+    target = (_norm_name(jmeno), _norm_name(prijmeni))
+    if target == ("", ""):
+        return None
+    for year in sorted(list_available_years(data_dir), reverse=True):
+        if year >= current_year:
+            continue
+        try:
+            data = load_year(data_dir, year)
+        except OSError:
+            continue
+        for s in data.students:
+            if (_norm_name(s.jmeno), _norm_name(s.prijmeni)) == target:
+                return year, s
+    return None
+
+
 def find_previous_students_batch(
     data_dir: Path,
     os_cisla: set[str],

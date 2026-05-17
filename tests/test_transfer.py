@@ -146,3 +146,75 @@ def test_repetent_ma_uznanou_dochazku_v_evaluate():
     r_rep = evaluate(s, is_repetent=True)
     assert r_rep.gate.dochazka_ok
     assert r_rep.znamka != "F"  # gate splněn
+
+
+def test_find_previous_student_by_name(tmp_path):
+    from softwaretestingklasifikator.io.storage import (
+        find_previous_student_by_name,
+        save_year,
+    )
+    save_year(tmp_path, YearData(year=2024, students=[
+        Student(os_cislo="A1", jmeno="Matěj", prijmeni="Bača", test1=18),
+        Student(os_cislo="A2", jmeno="Eva", prijmeni="Nováková", test1=22),
+    ]))
+    save_year(tmp_path, YearData(year=2025, students=[
+        Student(os_cislo="A1", jmeno="Matěj", prijmeni="Bača", test1=20),
+    ]))
+    # Standard match — najde 2025 (nejnovější).
+    found = find_previous_student_by_name(tmp_path, "Matěj", "Bača", 2026)
+    assert found is not None
+    assert found[0] == 2025
+    assert found[1].test1 == 20
+
+    # Case + diacritics insensitive.
+    found2 = find_previous_student_by_name(tmp_path, "matej", "baca", 2026)
+    assert found2 is not None
+    assert found2[0] == 2025
+
+    # Student jen v 2024.
+    eva = find_previous_student_by_name(tmp_path, "Eva", "Nováková", 2026)
+    assert eva is not None
+    assert eva[0] == 2024
+
+    # Neexistující.
+    none = find_previous_student_by_name(tmp_path, "Nikdo", "Neznámý", 2026)
+    assert none is None
+
+
+def test_repetent_override_in_is_repetent():
+    """Manuální override přebíjí auto-detekci."""
+    from softwaretestingklasifikator.ui.student_table_model import StudentTableModel
+    students = [
+        Student(os_cislo="A1", jmeno="x", prijmeni="x"),  # auto-repetent
+        Student(os_cislo="A2", jmeno="y", prijmeni="y"),  # ne-repetent
+        Student(os_cislo="A3", jmeno="z", prijmeni="z",
+                repetent_override=True),  # manuál True
+        Student(os_cislo="A1b", jmeno="w", prijmeni="w",
+                repetent_override=False),  # zruseno
+    ]
+    model = StudentTableModel(students=students)
+    model._repetent_os_cisla = {"A1", "A1b"}  # A1 a A1b jsou auto
+
+    assert model.is_repetent(students[0]) is True   # auto (override=None)
+    assert model.is_repetent(students[1]) is False  # neauto, override=None
+    assert model.is_repetent(students[2]) is True   # override=True
+    assert model.is_repetent(students[3]) is False  # override=False přebije auto
+
+
+def test_repetent_override_serializace(tmp_path):
+    from softwaretestingklasifikator.io.storage import load_year, save_year
+    s = Student(os_cislo="A1", jmeno="x", prijmeni="x", repetent_override=False)
+    save_year(tmp_path, YearData(year=2026, students=[s]))
+    loaded = load_year(tmp_path, 2026)
+    assert loaded.students[0].repetent_override is False
+
+    s2 = Student(os_cislo="A2", jmeno="y", prijmeni="y", repetent_override=True)
+    save_year(tmp_path, YearData(year=2027, students=[s2]))
+    loaded2 = load_year(tmp_path, 2027)
+    assert loaded2.students[0].repetent_override is True
+
+    # Default = None
+    s3 = Student(os_cislo="A3", jmeno="z", prijmeni="z")
+    save_year(tmp_path, YearData(year=2028, students=[s3]))
+    loaded3 = load_year(tmp_path, 2028)
+    assert loaded3.students[0].repetent_override is None

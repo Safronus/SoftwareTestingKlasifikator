@@ -1,10 +1,10 @@
-[build-system]
+	[build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "softwaretestingklasifikator"
-version = "0.6.1"
+version = "0.7.0"
 description = "Klasifikační aplikace pro předmět AP4TS (Testování SW) — UTB FAI."
 readme = "README.md"
 requires-python = ">=3.11"

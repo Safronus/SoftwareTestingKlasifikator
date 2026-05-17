@@ -42,6 +42,7 @@ from softwaretestingklasifikator.io.csv_import import (
 )
 from softwaretestingklasifikator.io.storage import (
     default_data_dir,
+    find_previous_student_by_name,
     find_previous_students_batch,
     list_available_years,
     load_year,
@@ -199,6 +200,7 @@ class MainWindow(QMainWindow):
         self.model.studentChanged.connect(lambda *_: self._apply_row_visibility())
         self.model.modelReset.connect(self._refresh_stats)
         self.model.modelReset.connect(self._apply_row_visibility)
+        self.model.repetentToggledOn.connect(self._on_repetent_marked)
         self.setCentralWidget(self.table)
 
         # ComboBox delegate pro sloupec „Pokus"
@@ -559,6 +561,36 @@ class MainWindow(QMainWindow):
             self,
             "Import dokončen",
             f"Načteno {len(imported)} řádků.\nPřidáno: {added}\nAktualizováno: {updated}",
+        )
+
+    def _on_repetent_marked(self, row: int) -> None:
+        """Reakce na ruční zaškrtnutí „REP" checkboxu — pokus o transfer
+        dat z předchozího ročníku podle jména a příjmení."""
+        if self._current_year_data is None:
+            return
+        student = self.model.student_at(row)
+        if student is None:
+            return
+        found = find_previous_student_by_name(
+            self.data_dir,
+            student.jmeno,
+            student.prijmeni,
+            self._current_year_data.year,
+        )
+        name = student.display_name() or student.os_cislo
+        if found is None:
+            self._update_status(
+                f'„{name}" označen jako repetent. V minulých ročnících '
+                f'žádný výskyt — body se nepřenášejí.'
+            )
+            return
+        prev_year, prev_student = found
+        transfer_from_previous(student, prev_student)
+        self.model.emit_row_changed(row)
+        self._save_now()
+        self._update_status(
+            f'„{name}" označen jako repetent. '
+            f'Body přeneseny z ročníku {prev_year}.'
         )
 
     def _import_test_scores(self) -> None:

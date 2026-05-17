@@ -87,6 +87,11 @@ class Student:
     pokus: str = POKUS_RADNY  # viz POKUS_VALUES
     ma_istqb_ctfl: bool = False  # certifikát ISTQB CTFL → automaticky A
     ukoncil_studium: bool = False  # student už nestuduje — skryt z tabulky
+    # Manuální přepis statusu repetenta:
+    #   None  = použij auto-detekci (os. číslo v některém předchozím roce)
+    #   True  = manuálně označený jako repetent (i bez auto-detekce)
+    #   False = manuálně odoznačený (i přes auto-detekci)
+    repetent_override: bool | None = None
     komentar: str = ""
 
     # Volitelná uložená známka (např. při importu historických dat).
@@ -129,6 +134,11 @@ class Student:
             pokus=_normalize_pokus(data.get("pokus", POKUS_RADNY)),
             ma_istqb_ctfl=bool(data.get("ma_istqb_ctfl", False)),
             ukoncil_studium=bool(data.get("ukoncil_studium", False)),
+            repetent_override=(
+                None
+                if data.get("repetent_override") is None
+                else bool(data.get("repetent_override"))
+            ),
             komentar=str(data.get("komentar", "") or ""),
             znamka_override=(data.get("znamka_override") or None),
         )

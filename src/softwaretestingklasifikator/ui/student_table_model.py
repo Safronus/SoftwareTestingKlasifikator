@@ -103,6 +103,10 @@ _MISSING = object()
 
 class StudentTableModel(QAbstractTableModel):
     studentChanged = Signal(int)  # row index
+    # Vystřelí když student byl právě ručně označen jako repetent (původně NE → ANO).
+    # Main_window na něj reaguje: vyhledá ho v předchozích letech podle jména
+    # a aplikuje transfer (uznání bodů z minulého roku).
+    repetentToggledOn = Signal(int)  # row index
 
     def __init__(self, students: list[Student] | None = None, parent=None) -> None:
         super().__init__(parent)
@@ -163,6 +167,9 @@ class StudentTableModel(QAbstractTableModel):
         return set(self._repetent_os_cisla)
 
     def is_repetent(self, student: Student) -> bool:
+        # Manuální override (None = auto, True/False = force) přebíjí auto-detekci.
+        if student.repetent_override is not None:
+            return student.repetent_override
         return bool(student.os_cislo) and student.os_cislo in self._repetent_os_cisla
 
     def set_top_ranks(self, ranks: dict[int, int]) -> None:
@@ -300,7 +307,7 @@ class StudentTableModel(QAbstractTableModel):
             return Qt.ItemFlag.NoItemFlags
         key, _, editable, _, _ = COLUMNS[index.column()]
         base = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
-        if key in ("dochazka", "istqb", "ukoncil"):
+        if key in ("dochazka", "istqb", "ukoncil", "repetent"):
             # Repetent má docházku automaticky uznanou — needitovatelnou.
             if key == "dochazka" and self.is_repetent(self._students[index.row()]):
                 pass
@@ -342,6 +349,8 @@ class StudentTableModel(QAbstractTableModel):
             return Qt.CheckState.Checked if student.ma_istqb_ctfl else Qt.CheckState.Unchecked
         if key == "ukoncil" and role == Qt.ItemDataRole.CheckStateRole:
             return Qt.CheckState.Checked if student.ukoncil_studium else Qt.CheckState.Unchecked
+        if key == "repetent" and role == Qt.ItemDataRole.CheckStateRole:
+            return Qt.CheckState.Checked if repetent else Qt.CheckState.Unchecked
 
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             if key == "rank":
@@ -572,6 +581,20 @@ class StudentTableModel(QAbstractTableModel):
                 return False
             student.ukoncil_studium = checked
             self.emit_row_changed(index.row())
+            return True
+
+        if key == "repetent" and role == Qt.ItemDataRole.CheckStateRole:
+            checked = Qt.CheckState(value) == Qt.CheckState.Checked
+            was_repetent = self.is_repetent(student)
+            if was_repetent == checked:
+                return False
+            # Manuální override: zapíše explicit True/False (přebíjí auto-detekci).
+            student.repetent_override = checked
+            self.emit_row_changed(index.row())
+            # Pokud přešel z NE→ANO, vystřelíme signal pro hlavní okno,
+            # aby vyhledalo studenta v předchozích letech a aplikovalo transfer.
+            if checked and not was_repetent:
+                self.repetentToggledOn.emit(index.row())
             return True
 
         if role != Qt.ItemDataRole.EditRole or not editable:
