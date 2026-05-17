@@ -136,6 +136,7 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.5.4** — Sloupec **Docházka** má teď checkbox **vystředěný** (vlastní `CenteredCheckboxDelegate` — default Qt jej kreslí vlevo). Buňka **Datum odevzdání** přebírá **stejnou barvu jako sloupec Pokus**: zelená (řádný), žlutá (oprava), oranžová (po termínu), červená (neodevzdal). I prázdná buňka u neodevzdaných je červená — vizuální párování usnadní orientaci.
 **0.5.3** — Komentář teď konzistentně vyplňuje zbytek šířky **i po přepnutí roku**. Root cause: `resizeColumnsToContents()` se volal v `_set_year_data` a u některých ročníků s delšími komentáři roztáhl ostatní sloupce nad šířku viewportu, čímž vytlačil Stretch komentář. Nyní používáme **pevné defaultní šířky** z `COLUMNS` (uživatel si může roztáhnout ručně), Komentář drží `Stretch` napříč všemi year switchi.
 **0.5.2** — Sloupec **Komentář** opět vyplňuje zbytek šířky okna (explicitní `Stretch` resize mode + správné pořadí volání — předtím se nastavoval před `setModel`, takže Qt neměl ještě sloupce). Buňka **Docházky pro repetenta** má teď mírně **světlejší zelenou** `(195, 225, 145)` — vizuálně odlišuje auto-uznanou docházku od ručně potvrzené.
 **0.5.1** — Polish dialogu „Nový ročník". Datumy předvyplněny na **dnes** (řádný) a **dnes + 60 dní** (opravný). Validace: opravný termín musí být později než řádný — jinak warning. Default rok je teď **první prázdný** — pokud aktuální rok existuje, ale je bez studentů, použije se on (import proběhne do něj). Roky se studenty jsou nadále blokované.

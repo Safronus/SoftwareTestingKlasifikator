@@ -414,6 +414,11 @@ class StudentTableModel(QAbstractTableModel):
                 return QBrush(DOCHAZKA_FAIL_BG)
             if key == "pokus":
                 return QBrush(POKUS_BG.get(student.pokus, POKUS_BG["radny"]))
+            if key == "datum_odevzdani":
+                # Vizuálně spáruj barvu s sloupcem Pokus — uživatel okamžitě
+                # vidí, jestli datum patří k řádnému / opravnému / pozdnímu /
+                # neodevzdanému (i prázdná buňka má červené pozadí).
+                return QBrush(POKUS_BG.get(student.pokus, POKUS_BG["radny"]))
             if key == "projekt_pct":
                 return QBrush(projekt_percent_bg(result.projekt_percent))
             if key == "test1":
@@ -443,6 +448,8 @@ class StudentTableModel(QAbstractTableModel):
             if key == "dochazka":
                 return QBrush(Qt.GlobalColor.white)
             if key == "pokus":
+                return QBrush(POKUS_FG.get(student.pokus, POKUS_FG["radny"]))
+            if key == "datum_odevzdani":
                 return QBrush(POKUS_FG.get(student.pokus, POKUS_FG["radny"]))
             if key == "test1":
                 return QBrush(_test_status_fg(student.test1, result.test1_total, GATE_TEST1))
