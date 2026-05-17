@@ -206,24 +206,45 @@ def apply_test_scores(
 def transfer_from_previous(student: Student, previous: Student) -> None:
     """Přenese hodnocení z minulého ročníku do nového studenta (repetent).
 
-    Pravidla:
-    - test1, test2, projekt: přenese se `prev_test + prev_bonus_test` (uznáno
-      i s bonusem), oříznuto na MAX dané části.
-    - bonus se NEPŘENÁŠÍ (reset na 0).
-    - docházka, komentář, ISTQB CTFL: kopie.
-    - datum_odevzdani, pokus, ukoncil_studium, znamka_override: reset na
-      výchozí (nová klasifikace pro nový rok).
+    Použito při dvou scénářích:
+    1. CSV import nového ročníku — student má zatím defaultní hodnoty.
+    2. Ručním označení jako REP — student už může mít zadaná data.
+
+    Pravidla (chrání před přepsáním ručně zadaných dat):
+    - body (test1, test2, projekt): vždy **max(aktuální, prev_test + prev_bonus)**,
+      oříznuto na MAX. Když student už má vyšší body, zůstávají.
+    - bonus se NEPŘENÁŠÍ (bonus z minulého roku se „zúčtuje" do testů přes max výše).
+    - komentář, docházka, ISTQB CTFL: kopie z `prev` jen pokud aktuální je
+      prázdný/default (nepřepíše ručně zadaná data; ale ISTQB lze jen „povýšit",
+      nikdy ho neztratit).
+    - datum_odevzdani, pokus, ukoncil_studium, znamka_override: vždy reset
+      na výchozí (jde o nový rok — tyto stavy z loňska nemají smysl).
     """
     def _r(v: float) -> float:
         return round(float(v), POINTS_DECIMALS)
 
-    student.test1 = min(MAX_TEST1, _r(previous.test1 + previous.bonus.test1))
-    student.test2 = min(MAX_TEST2, _r(previous.test2 + previous.bonus.test2))
-    student.projekt = min(MAX_PROJEKT, _r(previous.projekt + previous.bonus.projekt))
+    # Max-pravidlo pro body: chrání aktuální výsledky, pokud jsou lepší.
+    candidate_t1 = min(MAX_TEST1, _r(previous.test1 + previous.bonus.test1))
+    candidate_t2 = min(MAX_TEST2, _r(previous.test2 + previous.bonus.test2))
+    candidate_pj = min(MAX_PROJEKT, _r(previous.projekt + previous.bonus.projekt))
+    student.test1 = max(student.test1, candidate_t1)
+    student.test2 = max(student.test2, candidate_t2)
+    student.projekt = max(student.projekt, candidate_pj)
     student.bonus = BonusBreakdown()
-    student.dochazka = previous.dochazka  # repetent dostává auto-True i přes tohle
-    student.komentar = previous.komentar
-    student.ma_istqb_ctfl = previous.ma_istqb_ctfl
+
+    # Pole, která chceme zachovat pokud už uživatel něco zadal.
+    if not student.komentar:
+        student.komentar = previous.komentar
+    # ISTQB: zachovat True (nikdy ho nedegradovat), případně povýšit z minula.
+    if previous.ma_istqb_ctfl and not student.ma_istqb_ctfl:
+        student.ma_istqb_ctfl = True
+    # Docházka: u repetenta je stejně auto-True; kopii dělej jen pokud aktuální
+    # je False (neudělá to viditelný rozdíl, ale zachová původní hodnotu pokud
+    # ji uživatel cíleně nastavil na True).
+    if not student.dochazka:
+        student.dochazka = previous.dochazka
+
+    # Stavy spjaté s aktuálním rokem — vždy reset.
     student.datum_odevzdani = None
     student.pokus = POKUS_RADNY
     student.ukoncil_studium = False

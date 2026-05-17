@@ -95,6 +95,63 @@ def test_transfer_kopiruje_komentar_a_istqb():
     assert new.ma_istqb_ctfl is True
 
 
+def test_transfer_zachova_aktualni_lepsi_body():
+    """Pokud má student už aktuálně lepší výsledek než loni, zůstanou.
+
+    Scénář: ručně zaškrtnu REP u studenta, který už má letošní body
+    větší než loňské. Tyto letošní body se nesmí přepsat.
+    """
+    # Loni: t1=15+bonus 3=18, t2=10+bonus 5=15, projekt=80+bonus 10=90
+    prev = _make_prev(
+        test1=15, test2=10, projekt=80,
+        bonus=BonusBreakdown(test1=3, test2=5, projekt=10),
+    )
+    # Letos už lepší body
+    new = Student(os_cislo="A1", jmeno="x", prijmeni="x",
+                  test1=22, test2=22, projekt=120)
+    transfer_from_previous(new, prev)
+    assert new.test1 == 22   # max(22, 18)
+    assert new.test2 == 22   # max(22, 15)
+    assert new.projekt == 120  # max(120, 90)
+
+
+def test_transfer_doplni_lonske_kdyz_jsou_lepsi():
+    """Loňské body se převezmou (s bonusem), pokud jsou vyšší než letošní."""
+    prev = _make_prev(test1=22, test2=18, projekt=140)
+    new = Student(os_cislo="A1", jmeno="x", prijmeni="x",
+                  test1=10, test2=8, projekt=50)
+    transfer_from_previous(new, prev)
+    assert new.test1 == 22  # max(10, 22)
+    assert new.test2 == 18  # max(8, 18)
+    assert new.projekt == 140
+
+
+def test_transfer_neprepise_aktualni_komentar():
+    """Komentář se převezme jen pokud aktuální je prázdný."""
+    prev = _make_prev(test1=20, test2=20, projekt=100,
+                      komentar="poznámka z loňska")
+    new = Student(os_cislo="A1", jmeno="x", prijmeni="x",
+                  komentar="moje aktuální poznámka")
+    transfer_from_previous(new, prev)
+    assert new.komentar == "moje aktuální poznámka"  # nepřepsáno
+
+
+def test_transfer_neztrati_istqb_kdyz_je_uz_zaskrtnuty():
+    """Student už má ISTQB — nesmí se odebrat ani když ho loni neměl."""
+    prev = _make_prev(test1=20, test2=20, projekt=100, ma_istqb_ctfl=False)
+    new = Student(os_cislo="A1", jmeno="x", prijmeni="x", ma_istqb_ctfl=True)
+    transfer_from_previous(new, prev)
+    assert new.ma_istqb_ctfl is True
+
+
+def test_transfer_povysi_istqb_kdyz_loni_byl_a_letos_neni():
+    """Pokud loni měl ISTQB a letos ne, převezme se True."""
+    prev = _make_prev(test1=20, test2=20, projekt=100, ma_istqb_ctfl=True)
+    new = Student(os_cislo="A1", jmeno="x", prijmeni="x", ma_istqb_ctfl=False)
+    transfer_from_previous(new, prev)
+    assert new.ma_istqb_ctfl is True
+
+
 def test_find_previous_students_batch(tmp_path):
     # 2023: A1
     # 2024: A2, A3
