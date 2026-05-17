@@ -190,6 +190,12 @@ class MainWindow(QMainWindow):
         komentar_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "komentar"), None)
         if komentar_col is not None:
             header.setSectionResizeMode(komentar_col, QHeaderView.ResizeMode.Stretch)
+        # Pevné defaultní šířky z COLUMNS — uživatel si může roztáhnout ručně.
+        # Nepoužíváme resizeColumnsToContents, protože po year switch při delších
+        # komentářích vytlačí Stretch sloupec mimo viewport.
+        for i in range(self.model.columnCount()):
+            if i != komentar_col:
+                self.table.setColumnWidth(i, self.model.column_default_width(i))
         self.model.studentChanged.connect(self._schedule_autosave)
         self.model.studentChanged.connect(lambda *_: self._refresh_stats())
         self.model.studentChanged.connect(lambda *_: self._apply_row_visibility())
@@ -281,9 +287,6 @@ class MainWindow(QMainWindow):
         self.table.sortByColumn(prijmeni_col, Qt.SortOrder.AscendingOrder)
         self._refresh_stats()
         self._apply_row_visibility()
-        # One-shot fit-to-content po načtení ročníku. Pak už šířky zůstanou
-        # zafixované (Interactive) — žádné přepočítávání při scrollu.
-        self.table.resizeColumnsToContents()
         self._update_status_for_year()
 
     def _refresh_stats(self) -> None:
