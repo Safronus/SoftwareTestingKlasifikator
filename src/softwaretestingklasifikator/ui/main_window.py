@@ -143,6 +143,13 @@ class MainWindow(QMainWindow):
         self.action_show_finished.toggled.connect(self._apply_row_visibility)
         toolbar.addAction(self.action_show_finished)
 
+        self.action_mark_all_dochazka = QAction("✓ Docházka všem", self)
+        self.action_mark_all_dochazka.setToolTip(
+            "Označit splněnou docházku všem studentům aktuálního ročníku najednou."
+        )
+        self.action_mark_all_dochazka.triggered.connect(self._mark_all_dochazka)
+        toolbar.addAction(self.action_mark_all_dochazka)
+
         toolbar.addSeparator()
 
         self.action_reset_year = QAction("♻ Vynulovat hodnocení", self)
@@ -282,7 +289,7 @@ class MainWindow(QMainWindow):
             self.stats_panel.set_stats(compute_stats(YearData(year=0)), deadlines=None)
             for a in (self.action_export, self.action_import, self.action_import_tests,
                       self.action_import_dates, self.action_edit_year,
-                      self.action_delete_student,
+                      self.action_delete_student, self.action_mark_all_dochazka,
                       self.action_reset_year, self.action_delete_year):
                 a.setEnabled(False)
             return
@@ -434,6 +441,46 @@ class MainWindow(QMainWindow):
         self._current_year_data.deadlines = dlg.selected_deadlines()
         self._save_now()
         self._update_status_for_year()
+
+    def _mark_all_dochazka(self) -> None:
+        if self._current_year_data is None:
+            return
+        students = self._current_year_data.students
+        if not students:
+            QMessageBox.information(
+                self, "Docházka všem",
+                "Ročník zatím nemá žádné studenty.",
+            )
+            return
+        missing = sum(1 for s in students if not s.dochazka)
+        if missing == 0:
+            QMessageBox.information(
+                self, "Docházka všem",
+                "Všichni studenti už mají docházku splněnou — žádná změna.",
+            )
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Označit docházku všem",
+            f"Označit splněnou docházku všem {len(students)} studentům "
+            f"aktuálního ročníku?\n\n"
+            f"(Aktuálně {missing} studentů docházku nemá.)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        for s in students:
+            s.dochazka = True
+        self.model.set_students(students)
+        prijmeni_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "prijmeni"), 1)
+        self.table.sortByColumn(prijmeni_col, Qt.SortOrder.AscendingOrder)
+        self._refresh_stats()
+        self._apply_row_visibility()
+        self._save_now()
+        self._update_status(
+            f"Docházka označena jako splněná u {missing} studentů."
+        )
 
     def _reset_year_grades(self) -> None:
         if self._current_year_data is None:

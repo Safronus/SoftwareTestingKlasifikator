@@ -136,6 +136,7 @@ Testy používají pouze syntetická data, žádné reálné studenty.
 
 ## Verze
 
+**0.8.1** — Nové toolbar tlačítko **„✓ Docházka všem"** — označí splněnou docházku všem studentům aktuálního ročníku najednou (s konfirmací). Sloupec **REP** rozšířen z 50 px na 75 px — text „REP" se vedle checkboxu opět vejde.
 **0.8.0** — Nové toolbar tlačítko **„📅 Import dat odevzdání (CSV)"**. Otevře dialog pro výběr **více Moodle CSV najednou** (sloupce `Celý název` + `Poslední změna (odevzdaný úkol)`). Pro každý řádek:
 - má-li datum (formát „Sobota, 9. května 2026, 20.33") → nastaví studentovi `datum_odevzdani` (jen den) a odvodí `pokus` z deadlinů (řádný / oprava / po termínu),
 - má-li `-` → nastaví `datum_odevzdani=None` a `pokus=Neodevzdal`.

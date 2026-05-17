@@ -86,7 +86,7 @@ COLUMNS: tuple[tuple[str, str, bool, int, str], ...] = (
     ("pokus", "Pokus", False, 110, "meta"),
     ("dochazka", "Docházka", True, 70, "meta"),
     ("rank", "🏆", False, 36, "badge"),
-    ("repetent", "REP", False, 50, "badge"),
+    ("repetent", "REP", False, 75, "badge"),
     ("istqb", "CTFL", True, 60, "badge"),
     ("ukoncil", "Ukončil", True, 70, "badge"),
     ("komentar", "Komentář", True, 200, "note"),
