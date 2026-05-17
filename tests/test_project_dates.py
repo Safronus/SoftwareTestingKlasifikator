@@ -20,6 +20,7 @@ from softwaretestingklasifikator.io.csv_import import (
     _name_tokens,
     _parse_czech_date,
     apply_project_dates,
+    dedup_project_dates,
     read_project_dates_csv,
 )
 
@@ -118,23 +119,97 @@ def test_apply_unmatched_tracked():
     assert r.unmatched == ["Neznámý Student"]
 
 
-def test_apply_accumulates_multiple_files():
+def test_dedup_date_wins_over_none():
+    """Při duplikátu vyhrává řádek s datem nad řádkem bez data."""
+    rows = [
+        ProjectDateRow(full_name="Eva N", submission_date=date(2026, 5, 10)),
+        ProjectDateRow(full_name="Eva N", submission_date=None),
+    ]
+    deduped = dedup_project_dates(rows)
+    assert len(deduped) == 1
+    assert deduped[0].submission_date == date(2026, 5, 10)
+
+
+def test_dedup_date_wins_over_none_reversed_order():
+    """Pořadí nehraje roli — date vždy vyhrává."""
+    rows = [
+        ProjectDateRow(full_name="Eva N", submission_date=None),
+        ProjectDateRow(full_name="Eva N", submission_date=date(2026, 5, 10)),
+    ]
+    deduped = dedup_project_dates(rows)
+    assert len(deduped) == 1
+    assert deduped[0].submission_date == date(2026, 5, 10)
+
+
+def test_dedup_keeps_latest_date():
+    """Při dvou datech vyhrává novější (nejnovější odevzdání)."""
+    rows = [
+        ProjectDateRow(full_name="Eva N", submission_date=date(2026, 5, 10)),
+        ProjectDateRow(full_name="Eva N", submission_date=date(2026, 5, 15)),
+        ProjectDateRow(full_name="Eva N", submission_date=date(2026, 5, 12)),
+    ]
+    deduped = dedup_project_dates(rows)
+    assert len(deduped) == 1
+    assert deduped[0].submission_date == date(2026, 5, 15)
+
+
+def test_dedup_multiple_students():
+    rows = [
+        ProjectDateRow(full_name="Eva N", submission_date=date(2026, 5, 10)),
+        ProjectDateRow(full_name="Petr S", submission_date=None),
+        ProjectDateRow(full_name="Eva N", submission_date=None),  # ignore
+        ProjectDateRow(full_name="Petr S", submission_date=date(2026, 5, 12)),
+    ]
+    deduped = dedup_project_dates(rows)
+    assert len(deduped) == 2
+    by_name = {r.full_name: r for r in deduped}
+    assert by_name["Eva N"].submission_date == date(2026, 5, 10)
+    assert by_name["Petr S"].submission_date == date(2026, 5, 12)
+
+
+def test_dedup_multi_word_names_collapse_correctly():
+    """Stejný student s různě zapsaným jménem se dedupne dohromady."""
+    rows = [
+        ProjectDateRow(full_name="Theodor Jaroslav Krokavec",
+                       submission_date=date(2026, 5, 10)),
+        ProjectDateRow(full_name="Theodor Jaroslav Krokavec",
+                       submission_date=None),
+    ]
+    deduped = dedup_project_dates(rows)
+    assert len(deduped) == 1
+    assert deduped[0].submission_date == date(2026, 5, 10)
+
+
+def test_apply_multi_file_workflow():
+    """E2E: 2 soubory, oba se stejnými studenty, jen v jednom je datum.
+
+    Bez dedup by druhý soubor přepsal první. Po dedup zůstane datum.
+    """
     students = [
         Student(os_cislo="A1", jmeno="Eva", prijmeni="N"),
         Student(os_cislo="A2", jmeno="Petr", prijmeni="S"),
     ]
-    rows1 = [ProjectDateRow(full_name="Eva N", submission_date=date(2026, 5, 10))]
-    rows2 = [ProjectDateRow(full_name="Petr S", submission_date=None)]
+    # Soubor 1: Eva má datum, Petr ne.
+    rows1 = [
+        ProjectDateRow(full_name="Eva N", submission_date=date(2026, 5, 10)),
+        ProjectDateRow(full_name="Petr S", submission_date=None),
+    ]
+    # Soubor 2: oba bez data (např. starší export).
+    rows2 = [
+        ProjectDateRow(full_name="Eva N", submission_date=None),
+        ProjectDateRow(full_name="Petr S", submission_date=None),
+    ]
+    all_rows = rows1 + rows2  # 4 řádků
+    deduped = dedup_project_dates(all_rows)
+    assert len(deduped) == 2  # 2 unikátní studenti
+
     deadlines = YearDeadlines(first=date(2026, 5, 14))
-
-    result = apply_project_dates(students, rows1, deadlines=deadlines)
-    result = apply_project_dates(students, rows2, deadlines=deadlines, result=result)
-
-    assert result.files_processed == 2
-    assert result.rows_total == 2
+    result = apply_project_dates(students, deduped, deadlines=deadlines)
     assert result.matched == 2
-    assert result.set_date == 1
-    assert result.set_neodevzdal == 1
+    assert result.set_date == 1  # Eva má datum (nezničil druhý soubor)
+    assert result.set_neodevzdal == 1  # Petr nemá
+    assert students[0].datum_odevzdani == date(2026, 5, 10)
+    assert students[1].datum_odevzdani is None
 
 
 def test_read_csv_moodle_format(tmp_path):

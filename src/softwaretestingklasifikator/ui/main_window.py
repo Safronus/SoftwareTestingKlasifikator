@@ -37,6 +37,7 @@ from softwaretestingklasifikator.io.csv_import import (
     ProjectDateImportResult,
     apply_project_dates,
     apply_test_scores,
+    dedup_project_dates,
     merge_students,
     read_project_dates_csv,
     read_roakce_csv,
@@ -664,19 +665,34 @@ class MainWindow(QMainWindow):
         if not paths:
             return
 
-        result = ProjectDateImportResult()
+        # Nejdřív načti všechny řádky ze všech souborů, pak dedup (best-wins),
+        # teprve potom apply. Bez dedup by druhý CSV bez data přepsal první
+        # CSV s datem na neodevzdal.
+        all_rows: list = []
+        files_with_errors: list[tuple[str, str]] = []
+        files_processed = 0
         for path_str in paths:
             try:
                 rows = read_project_dates_csv(Path(path_str))
             except Exception as exc:  # noqa: BLE001
-                result.files_with_errors.append((Path(path_str).name, str(exc)))
+                files_with_errors.append((Path(path_str).name, str(exc)))
                 continue
-            apply_project_dates(
-                self._current_year_data.students,
-                rows,
-                deadlines=self._current_year_data.deadlines,
-                result=result,
-            )
+            files_processed += 1
+            all_rows.extend(rows)
+
+        raw_row_count = len(all_rows)
+        deduped = dedup_project_dates(all_rows)
+        result = ProjectDateImportResult()
+        apply_project_dates(
+            self._current_year_data.students,
+            deduped,
+            deadlines=self._current_year_data.deadlines,
+            result=result,
+        )
+        # Přepsat counts hodnotami z multi-file kontextu.
+        result.files_processed = files_processed
+        result.rows_total = raw_row_count  # včetně duplicit
+        result.files_with_errors = files_with_errors
 
         # Refresh tabulky + persist.
         self.model.set_students(self._current_year_data.students)
@@ -688,7 +704,8 @@ class MainWindow(QMainWindow):
 
         msg_lines = [
             f"Zpracováno souborů: {result.files_processed}",
-            f"Načteno řádků celkem: {result.rows_total}",
+            f"Načteno řádků celkem: {result.rows_total} "
+            f"(unikátních studentů po dedup: {len(deduped)})",
             f"Spárováno se studenty ročníku: {result.matched}",
             f"  ⤷ s datem odevzdání: {result.set_date}",
             f"  ⤷ označeno jako Neodevzdal: {result.set_neodevzdal}",

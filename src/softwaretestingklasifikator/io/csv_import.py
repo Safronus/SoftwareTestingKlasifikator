@@ -151,6 +151,38 @@ class ProjectDateImportResult:
     files_with_errors: list[tuple[str, str]] = field(default_factory=list)
 
 
+def dedup_project_dates(rows: list[ProjectDateRow]) -> list[ProjectDateRow]:
+    """Spojí duplicitní řádky podle slovní množiny celého jména.
+
+    Best wins pravidlo (pro studenta v několika CSV / víckrát v jednom):
+    - Řádek s datem **vždy** vyhraje nad řádkem bez data.
+    - Pokud mají oba datum, vyhraje **pozdější** (nejnovější odevzdání).
+
+    Použij před `apply_project_dates`, když načítáš více souborů najednou —
+    bez tohoto kroku by pozdější CSV bez data přepsalo dřívější s datem.
+    """
+    by_key: dict[frozenset[str], ProjectDateRow] = {}
+    for r in rows:
+        key = _name_tokens(r.full_name)
+        if not key:
+            continue
+        cur = by_key.get(key)
+        if cur is None:
+            by_key[key] = r
+            continue
+        # Nová bez data → ignoruj (nepřepiš lepší stav).
+        if r.submission_date is None:
+            continue
+        # Současná bez data, nová s datem → použij novou.
+        if cur.submission_date is None:
+            by_key[key] = r
+            continue
+        # Obě s datem → vyhrává novější.
+        if r.submission_date > cur.submission_date:
+            by_key[key] = r
+    return list(by_key.values())
+
+
 def read_project_dates_csv(path: Path) -> list[ProjectDateRow]:
     """Načte Moodle CSV s daty odevzdání projektu.
 
