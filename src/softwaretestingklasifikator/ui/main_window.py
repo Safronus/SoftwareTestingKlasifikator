@@ -224,6 +224,17 @@ class MainWindow(QMainWindow):
         for i in range(self.model.columnCount()):
             if i != komentar_col:
                 self.table.setColumnWidth(i, self.model.column_default_width(i))
+        # CTFL: po zaškrtnutí se text rozšíří z „Ne" na bold „Ano" — auto-resize
+        # column to contents při každé změně dat, aby se text neořezával.
+        self._istqb_col = next(
+            (i for i, c in enumerate(COLUMNS) if c[0] == "istqb"), None,
+        )
+        if self._istqb_col is not None:
+            self._resize_istqb_to_contents()
+            self.model.studentChanged.connect(
+                lambda *_: self._resize_istqb_to_contents()
+            )
+            self.model.modelReset.connect(self._resize_istqb_to_contents)
         self.model.studentChanged.connect(self._schedule_autosave)
         self.model.studentChanged.connect(lambda *_: self._refresh_stats())
         self.model.studentChanged.connect(lambda *_: self._apply_row_visibility())
@@ -354,6 +365,20 @@ class MainWindow(QMainWindow):
         show_finished = self.action_show_finished.isChecked()
         for row, student in enumerate(self.model.students()):
             self.table.setRowHidden(row, student.ukoncil_studium and not show_finished)
+
+    def _resize_istqb_to_contents(self) -> None:
+        """CTFL sloupec: auto-resize podle obsahu, ale s bezpečným floorem.
+
+        Po zaškrtnutí checkboxu se text změní z „Ne" na bold „Ano" (širší)
+        — bez resize by se v default 60 px ořezalo."""
+        if self._istqb_col is None:
+            return
+        self.table.resizeColumnToContents(self._istqb_col)
+        # Floor — i kdyby ResizeToContents vrátilo nečekaně málo, ať je
+        # text vidět bez ellipsis.
+        min_w = self.model.column_default_width(self._istqb_col)
+        if self.table.columnWidth(self._istqb_col) < min_w:
+            self.table.setColumnWidth(self._istqb_col, min_w)
 
     def _update_status_for_year(self) -> None:
         d = self._current_year_data

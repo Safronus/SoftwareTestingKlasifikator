@@ -5,8 +5,9 @@ from __future__ import annotations
 import locale
 from datetime import date
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSize, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QFontMetrics
+from PySide6.QtWidgets import QApplication, QStyle
 
 from softwaretestingklasifikator.config import (
     DATE_FORMAT_PY,
@@ -495,6 +496,28 @@ class StudentTableModel(QAbstractTableModel):
             font = QFont()
             font.setBold(True)
             return font
+
+        if role == Qt.ItemDataRole.SizeHintRole and key == "istqb":
+            # Default Qt sizeHint nepočítá s checkbox indicator vedle textu —
+            # ResizeToContents pak vrátí příliš úzkou hodnotu a „Ano"/„Ne"
+            # se ořízne. Vrátíme šířku zahrnující indicator + bold text +
+            # generous padding (Qt cell margins na macOS jsou ~8 px na stranu,
+            # plus spacing mezi indicatorem a textem).
+            font = QFont()
+            font.setBold(True)
+            fm = QFontMetrics(font)
+            text = "Ano" if student.ma_istqb_ctfl else "Ne"
+            text_w = fm.horizontalAdvance(text)
+            style = QApplication.style()
+            indicator_w = style.pixelMetric(QStyle.PixelMetric.PM_IndicatorWidth)
+            indicator_spacing = style.pixelMetric(
+                QStyle.PixelMetric.PM_CheckBoxLabelSpacing,
+            )
+            # 8 px padding na každé straně + spacing kolem indicatoru.
+            return QSize(
+                indicator_w + indicator_spacing + text_w + 24,
+                fm.height() + 6,
+            )
 
         if role == Qt.ItemDataRole.ToolTipRole:
             if key == "znamka" and not result.gate.all_ok:
