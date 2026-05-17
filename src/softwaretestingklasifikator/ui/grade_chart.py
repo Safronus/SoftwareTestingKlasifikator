@@ -17,12 +17,12 @@ class GradeChart(QWidget):
     počet, pod ním písmeno známky. Osa Y popisek nemá.
     """
 
-    LABEL_TOP_H = 11     # výška textu pro počet (těsně nad barem)
-    LABEL_BOTTOM_H = 13  # výška textu pro písmeno (pod barem)
+    LABEL_TOP_H = 16     # výška textu pro počet (těsně nad barem)
+    LABEL_BOTTOM_H = 14  # výška textu pro písmeno (pod barem)
     MARGIN = 2           # vnější margin
     MIN_BAR_HEIGHT = 2   # vždy alespoň pár pixelů, ať jdou nulové bary znát
     FIXED_WIDTH = 170    # pevná šířka grafu (cca polovina dosavadní)
-    FIXED_HEIGHT = 80    # pevná výška grafu
+    FIXED_HEIGHT = 92    # pevná výška grafu
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -70,13 +70,16 @@ class GradeChart(QWidget):
         slot_w = (w - 2 * self.MARGIN) / n
         bar_w = max(6.0, slot_w * 0.35)  # tenčí sloupečky
 
+        # Explicit point size — bez toho se default font může na různých
+        # systémech roztáhnout (např. macOS default 13 pt) a text se v label
+        # rectu ořeže.
         count_font = QFont(painter.font())
         count_font.setBold(True)
-        count_font.setPointSize(max(7, count_font.pointSize() - 1))
+        count_font.setPointSize(9)
 
         letter_font = QFont(painter.font())
         letter_font.setBold(True)
-        letter_font.setPointSize(max(8, letter_font.pointSize()))
+        letter_font.setPointSize(10)
 
         text_color = QColor(245, 245, 245)  # světlý text na tmavém docku
 
