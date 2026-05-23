@@ -6,13 +6,42 @@ from PySide6.QtCore import QEvent, QRect, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDoubleSpinBox,
     QStyle,
     QStyledItemDelegate,
     QStyleOptionButton,
     QStyleOptionViewItem,
 )
 
+from softwaretestingklasifikator.config import POINTS_DECIMALS
 from softwaretestingklasifikator.domain.models import POKUS_LABELS, POKUS_VALUES
+
+
+class PointsDelegate(QStyledItemDelegate):
+    """Editor pro bodové sloupce — QDoubleSpinBox s `POINTS_DECIMALS`
+    desetinami (default Qt by ořezával na 2)."""
+
+    def __init__(self, maximum: float, parent=None) -> None:
+        super().__init__(parent)
+        self._maximum = maximum
+
+    def createEditor(self, parent, option, index):  # type: ignore[override]
+        spin = QDoubleSpinBox(parent)
+        spin.setDecimals(POINTS_DECIMALS)
+        spin.setRange(0.0, self._maximum)
+        spin.setSingleStep(10 ** (-POINTS_DECIMALS))  # 0.001 při decimals=3
+        spin.setAccelerated(True)
+        return spin
+
+    def setEditorData(self, editor: QDoubleSpinBox, index) -> None:  # type: ignore[override]
+        try:
+            editor.setValue(float(index.data(Qt.ItemDataRole.EditRole) or 0))
+        except (TypeError, ValueError):
+            editor.setValue(0.0)
+
+    def setModelData(self, editor: QDoubleSpinBox, model, index) -> None:  # type: ignore[override]
+        editor.interpretText()
+        model.setData(index, editor.value(), Qt.ItemDataRole.EditRole)
 
 
 class PokusDelegate(QStyledItemDelegate):

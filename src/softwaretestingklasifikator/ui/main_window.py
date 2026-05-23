@@ -21,7 +21,13 @@ from PySide6.QtWidgets import (
 )
 
 from softwaretestingklasifikator import __version__
-from softwaretestingklasifikator.config import DATE_FORMAT_PY, SUBJECT_CODE
+from softwaretestingklasifikator.config import (
+    DATE_FORMAT_PY,
+    MAX_PROJEKT,
+    MAX_TEST1,
+    MAX_TEST2,
+    SUBJECT_CODE,
+)
 from softwaretestingklasifikator.domain.export_state import compute_export_hash
 from softwaretestingklasifikator.domain.models import (
     POKUS_RADNY,
@@ -57,7 +63,11 @@ from softwaretestingklasifikator.io.storage import (
     load_year,
     save_year,
 )
-from softwaretestingklasifikator.ui.delegates import CenteredCheckboxDelegate, PokusDelegate
+from softwaretestingklasifikator.ui.delegates import (
+    CenteredCheckboxDelegate,
+    PointsDelegate,
+    PokusDelegate,
+)
 from softwaretestingklasifikator.ui.exports_dialog import ExportsDialog
 from softwaretestingklasifikator.ui.stats_panel import StatsPanel
 from softwaretestingklasifikator.ui.student_table_model import COLUMNS, StudentTableModel
@@ -249,6 +259,21 @@ class MainWindow(QMainWindow):
         pokus_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "pokus"), None)
         if pokus_col is not None:
             self.table.setItemDelegateForColumn(pokus_col, PokusDelegate(self.table))
+        # Bodové sloupce — QDoubleSpinBox s POINTS_DECIMALS desetinami
+        # (default Qt editor by ořezával na 2).
+        for col_key, maximum in (
+            ("test1", MAX_TEST1),
+            ("test2", MAX_TEST2),
+            ("projekt", MAX_PROJEKT),
+            ("bonus_total", MAX_TEST1 + MAX_TEST2 + MAX_PROJEKT),
+        ):
+            col_idx = next(
+                (i for i, c in enumerate(COLUMNS) if c[0] == col_key), None,
+            )
+            if col_idx is not None:
+                self.table.setItemDelegateForColumn(
+                    col_idx, PointsDelegate(maximum, self.table),
+                )
         # Centrovaný checkbox pro sloupec „Docházka"
         dochazka_col = next(
             (i for i, c in enumerate(COLUMNS) if c[0] == "dochazka"), None,
