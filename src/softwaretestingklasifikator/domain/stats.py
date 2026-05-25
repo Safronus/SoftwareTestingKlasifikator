@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from softwaretestingklasifikator.config import GRADE_BANDS
+from softwaretestingklasifikator.config import (
+    GATE_TEST1,
+    GATE_TEST2,
+    GRADE_BANDS,
+    POINTS_DECIMALS,
+)
 from softwaretestingklasifikator.domain.grading import evaluate
 from softwaretestingklasifikator.domain.models import (
     POKUS_LABELS,
@@ -28,6 +33,14 @@ class YearStats:
     ukoncilo: int = 0
     splnilo_diky_bonusu: int = 0
     celkem: int = 0
+    # Splnění brány jednotlivých testů (test + bonus ≥ GATE_TESTx).
+    # `_diky_bonusu` je podmnožina splnilo: čistý test < gate, ale s bonusem ≥ gate.
+    test1_splnilo: int = 0
+    test1_nesplnilo: int = 0
+    test1_diky_bonusu: int = 0
+    test2_splnilo: int = 0
+    test2_nesplnilo: int = 0
+    test2_diky_bonusu: int = 0
 
     @property
     def splnilo(self) -> int:
@@ -64,6 +77,23 @@ def compute_stats(
         grade = s.znamka_override or result.znamka
         stats.grades[grade] = stats.grades.get(grade, 0) + 1
         stats.pokus_counts[s.pokus] = stats.pokus_counts.get(s.pokus, 0) + 1
+        # Splnění bran testů — počítáme z reálných bodů (test + bonus),
+        # nezávisle na ISTQB shortcutu. Trenér tak vidí skutečnou úspěšnost
+        # v testech, ne automatickou A z certifikátu.
+        t1_total = round(s.test1 + s.bonus.test1, POINTS_DECIMALS)
+        if t1_total >= GATE_TEST1:
+            stats.test1_splnilo += 1
+            if s.test1 < GATE_TEST1:
+                stats.test1_diky_bonusu += 1
+        else:
+            stats.test1_nesplnilo += 1
+        t2_total = round(s.test2 + s.bonus.test2, POINTS_DECIMALS)
+        if t2_total >= GATE_TEST2:
+            stats.test2_splnilo += 1
+            if s.test2 < GATE_TEST2:
+                stats.test2_diky_bonusu += 1
+        else:
+            stats.test2_nesplnilo += 1
         # Repetent má automaticky splněnou docházku (obecné pravidlo).
         if s.dochazka or is_rep:
             stats.dochazka_splneno += 1

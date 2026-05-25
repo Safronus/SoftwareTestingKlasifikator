@@ -43,6 +43,10 @@ from softwaretestingklasifikator.ui.theme import (
     POKUS_BG,
     POKUS_FG,
     REPETENT_ROW_BG,
+    TEST_FAIL_BG,
+    TEST_FAIL_FG,
+    TEST_PASS_CLEAN_BG,
+    TEST_PASS_CLEAN_FG,
 )
 
 _COUNT_BG = QColor(70, 130, 180)
@@ -254,6 +258,31 @@ class StatsPanel(QWidget):
         sn_grid.addWidget(_make_cell("Celkem", QColor(220, 220, 220), QColor(40, 40, 40), bold=True), 2, 0)
         sn_grid.addWidget(_make_cell(str(stats.celkem), _COUNT_BG, _COUNT_FG, bold=True), 2, 1)
         layout.addLayout(sn_grid)
+
+        # Splnění bran testů (každý test zvlášť — díky bonusu v závorce)
+        layout.addWidget(_make_section_title("Splnění testů"))
+        tests_grid = QGridLayout()
+        tests_grid.setSpacing(0)
+        rows = (
+            ("Test 1 splnilo", stats.test1_splnilo, stats.test1_diky_bonusu, True),
+            ("Test 1 nesplnilo", stats.test1_nesplnilo, 0, False),
+            ("Test 2 splnilo", stats.test2_splnilo, stats.test2_diky_bonusu, True),
+            ("Test 2 nesplnilo", stats.test2_nesplnilo, 0, False),
+        )
+        for row_idx, (label, count, diky_bonusu, is_pass) in enumerate(rows):
+            text = (
+                f"{label}  ({diky_bonusu} díky bonusu)"
+                if is_pass and diky_bonusu
+                else label
+            )
+            bg = TEST_PASS_CLEAN_BG if is_pass else TEST_FAIL_BG
+            fg = TEST_PASS_CLEAN_FG if is_pass else TEST_FAIL_FG
+            tests_grid.addWidget(_make_cell(text, bg, fg, bold=True), row_idx, 0)
+            tests_grid.addWidget(
+                _make_cell(str(count), _COUNT_BG, _COUNT_FG, bold=True, min_width=40),
+                row_idx, 1,
+            )
+        layout.addLayout(tests_grid)
 
         # Stav odevzdání
         layout.addWidget(_make_section_title("Stav odevzdání"))

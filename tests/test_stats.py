@@ -135,3 +135,44 @@ def test_compute_stats_istqb_not_counted_as_diky_bonusu():
     stats = compute_stats(YearData(year=2026, students=students))
     assert stats.splnilo == 1  # ISTQB → A
     assert stats.splnilo_diky_bonusu == 0  # ne díky bonusu
+
+
+def test_compute_stats_test_gate_counts():
+    from softwaretestingklasifikator.domain.models import BonusBreakdown
+    students = [
+        # A1: T1 čistě 17 (≥15), T2 čistě 20 (≥15) — oba bez bonusu
+        _s("A1", test1=17, test2=20, projekt=100),
+        # A2: T1 14 + bonus 2 = 16 (splnil díky bonusu), T2 13 + bonus 1 = 14 (NE)
+        _s("A2", test1=14, test2=13, projekt=100,
+           bonus=BonusBreakdown(test1=2, test2=1, projekt=0)),
+        # A3: T1 čistě 25, T2 14 + bonus 5 = 19 (díky bonusu)
+        _s("A3", test1=25, test2=14, projekt=100,
+           bonus=BonusBreakdown(test1=0, test2=5, projekt=0)),
+        # A4: oba pod bránou i s bonusem
+        _s("A4", test1=5, test2=5, projekt=0,
+           bonus=BonusBreakdown(test1=1, test2=1, projekt=0)),
+    ]
+    stats = compute_stats(YearData(year=2026, students=students))
+    # T1: A1 (17), A2 (16 s bonusem), A3 (25) → splnili. A4 → nesplnil.
+    assert stats.test1_splnilo == 3
+    assert stats.test1_nesplnilo == 1
+    assert stats.test1_diky_bonusu == 1  # jen A2
+    # T2: A1 (20), A3 (19 s bonusem) → splnili. A2 (14), A4 → nesplnili.
+    assert stats.test2_splnilo == 2
+    assert stats.test2_nesplnilo == 2
+    assert stats.test2_diky_bonusu == 1  # jen A3
+
+
+def test_compute_stats_test_gate_counts_istqb_uses_real_scores():
+    # ISTQB má auto-A, ale test gate stats odráží skutečné body z testů.
+    students = [
+        _s("A1", test1=10, test2=20, projekt=0, ma_istqb_ctfl=True),
+    ]
+    stats = compute_stats(YearData(year=2026, students=students))
+    assert stats.istqb == 1
+    assert stats.grades["A"] == 1
+    # T1: 10 < 15 → nesplnil. T2: 20 ≥ 15 → splnil.
+    assert stats.test1_nesplnilo == 1
+    assert stats.test1_splnilo == 0
+    assert stats.test2_splnilo == 1
+    assert stats.test2_nesplnilo == 0
