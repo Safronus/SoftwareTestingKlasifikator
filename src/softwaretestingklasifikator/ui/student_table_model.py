@@ -110,6 +110,10 @@ def _r(v: float) -> float:
     return round(float(v), POINTS_DECIMALS)
 
 
+def _fmt_points(v: float) -> str:
+    return f"{_r(v):.{POINTS_DECIMALS}f}"
+
+
 # Sentinel pro memoize — None je legitimní cached hodnota.
 _MISSING = object()
 
@@ -383,11 +387,17 @@ class StudentTableModel(QAbstractTableModel):
             if key == "prijmeni":
                 return student.prijmeni
             if key == "test1":
-                return _r(student.test1)
+                if role == Qt.ItemDataRole.EditRole:
+                    return _r(student.test1)
+                return _fmt_points(student.test1)
             if key == "test2":
-                return _r(student.test2)
+                if role == Qt.ItemDataRole.EditRole:
+                    return _r(student.test2)
+                return _fmt_points(student.test2)
             if key == "projekt":
-                return _r(student.projekt)
+                if role == Qt.ItemDataRole.EditRole:
+                    return _r(student.projekt)
+                return _fmt_points(student.projekt)
             if key == "projekt_pct":
                 return f"{result.projekt_percent * 100:.1f} %"
             if key == "bonus_total":
@@ -411,7 +421,9 @@ class StudentTableModel(QAbstractTableModel):
                     return student.pokus
                 return POKUS_LABELS.get(student.pokus, student.pokus)
             if key == "celkem":
-                return _r(result.celkem)
+                if role == Qt.ItemDataRole.EditRole:
+                    return _r(result.celkem)
+                return _fmt_points(result.celkem)
             if key == "znamka":
                 return grade
             if key == "komentar":
