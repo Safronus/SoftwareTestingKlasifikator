@@ -88,11 +88,17 @@ COLUMNS: tuple[tuple[str, str, bool, int, str], ...] = (
     ("os_cislo", "Os. číslo", False, 80, "identity"),
     ("prijmeni", "Příjmení", False, 130, "identity"),
     ("jmeno", "Jméno", False, 110, "identity"),
-    ("test1", "Test 1", True, 60, "tests"),
-    ("test2", "Test 2", True, 60, "tests"),
+    # Test 1/2 zobrazují „čistý (s bonusem)" když je bonus > 0,
+    # proto šířka pro „XX.XXX (XX.XXX)".
+    ("test1", "Test 1", True, 120, "tests"),
+    ("test2", "Test 2", True, 120, "tests"),
     ("projekt", "Projekt", True, 70, "project"),
     ("projekt_pct", "Projekt %", False, 70, "project"),
     ("bonus_total", "Bonus", True, 150, "bonus"),
+    # Chybí do brány T1/T2 (projekt neřešíme — má vlastní `projekt_pct`).
+    # Pomáhá při ručním rozdělování bonusu: trenér vidí přesnou
+    # zbývající potřebu, ne jen jestli buňka svítí červeně.
+    ("chybi", "Chybí", False, 110, "bonus"),
     ("celkem", "Celkem", False, 70, "result"),
     ("znamka", "Známka", False, 60, "result"),
     ("datum_odevzdani", "Odevzdání", True, 100, "meta"),
@@ -258,6 +264,10 @@ class StudentTableModel(QAbstractTableModel):
                 return s.projekt / MAX_PROJEKT if MAX_PROJEKT else 0.0
             if key_attr == "bonus_total":
                 return s.bonus.total()
+            if key_attr == "chybi":
+                t1_def = max(0.0, GATE_TEST1 - (s.test1 + s.bonus.test1))
+                t2_def = max(0.0, GATE_TEST2 - (s.test2 + s.bonus.test2))
+                return t1_def + t2_def
             if key_attr == "dochazka":
                 return 1 if s.dochazka else 0
             if key_attr == "datum_odevzdani":
@@ -389,11 +399,36 @@ class StudentTableModel(QAbstractTableModel):
             if key == "test1":
                 if role == Qt.ItemDataRole.EditRole:
                     return _r(student.test1)
+                # Display "pure  (total)" když je bonus na T1 > 0,
+                # ať trenér vidí dopad bonusu přímo v buňce.
+                if student.bonus.test1 > 0:
+                    return (
+                        f"{_fmt_points(student.test1)}  "
+                        f"({_fmt_points(result.test1_total)})"
+                    )
                 return _fmt_points(student.test1)
             if key == "test2":
                 if role == Qt.ItemDataRole.EditRole:
                     return _r(student.test2)
+                if student.bonus.test2 > 0:
+                    return (
+                        f"{_fmt_points(student.test2)}  "
+                        f"({_fmt_points(result.test2_total)})"
+                    )
                 return _fmt_points(student.test2)
+            if key == "chybi":
+                # Kolik chybí do brány T1 / T2 po započtení aktuálního bonusu.
+                # Projekt záměrně ignorován (má vlastní procento).
+                t1_def = max(0.0, _r(GATE_TEST1 - result.test1_total))
+                t2_def = max(0.0, _r(GATE_TEST2 - result.test2_total))
+                if role == Qt.ItemDataRole.EditRole:
+                    return _r(t1_def + t2_def)
+                parts = []
+                if t1_def > 0:
+                    parts.append(f"T1: {_fmt_points(t1_def)}")
+                if t2_def > 0:
+                    parts.append(f"T2: {_fmt_points(t2_def)}")
+                return " / ".join(parts)
             if key == "projekt":
                 if role == Qt.ItemDataRole.EditRole:
                     return _r(student.projekt)
@@ -532,6 +567,21 @@ class StudentTableModel(QAbstractTableModel):
             )
 
         if role == Qt.ItemDataRole.ToolTipRole:
+            if key == "chybi":
+                t1_def = max(0.0, _r(GATE_TEST1 - result.test1_total))
+                t2_def = max(0.0, _r(GATE_TEST2 - result.test2_total))
+                if t1_def == 0 and t2_def == 0:
+                    return "Obě testové brány splněny (po započtení bonusu)."
+                lines = ["Zbývá do brány (po započtení aktuálního bonusu):"]
+                if t1_def > 0:
+                    lines.append(f"  Test 1: {_fmt_points(t1_def)}")
+                else:
+                    lines.append("  Test 1: splněno ✓")
+                if t2_def > 0:
+                    lines.append(f"  Test 2: {_fmt_points(t2_def)}")
+                else:
+                    lines.append("  Test 2: splněno ✓")
+                return "\n".join(lines)
             if key == "znamka" and not result.gate.all_ok:
                 reasons = []
                 if not result.gate.test1_ok:
@@ -590,7 +640,7 @@ class StudentTableModel(QAbstractTableModel):
                         else "Certifikát ISTQB CTFL: NE")
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
-            if key in ("test1", "test2", "projekt", "projekt_pct", "bonus_total", "celkem"):
+            if key in ("test1", "test2", "projekt", "projekt_pct", "bonus_total", "chybi", "celkem"):
                 return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             if key in (
                 "znamka", "dochazka", "pokus", "repetent", "rank",
