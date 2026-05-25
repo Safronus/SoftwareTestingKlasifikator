@@ -98,7 +98,8 @@ COLUMNS: tuple[tuple[str, str, bool, int, str], ...] = (
     # Chybí do brány T1/T2 (projekt neřešíme — má vlastní `projekt_pct`).
     # Pomáhá při ručním rozdělování bonusu: trenér vidí přesnou
     # zbývající potřebu, ne jen jestli buňka svítí červeně.
-    ("chybi", "Chybí", False, 110, "bonus"),
+    # Šířka jen jako fallback — main_window přepne na ResizeToContents.
+    ("chybi", "Chybí", False, 70, "bonus"),
     ("celkem", "Celkem", False, 70, "result"),
     ("znamka", "Známka", False, 60, "result"),
     ("datum_odevzdani", "Odevzdání", True, 100, "meta"),
@@ -423,12 +424,11 @@ class StudentTableModel(QAbstractTableModel):
                 t2_def = max(0.0, _r(GATE_TEST2 - result.test2_total))
                 if role == Qt.ItemDataRole.EditRole:
                     return _r(t1_def + t2_def)
-                parts = []
-                if t1_def > 0:
-                    parts.append(f"T1: {_fmt_points(t1_def)}")
-                if t2_def > 0:
-                    parts.append(f"T2: {_fmt_points(t2_def)}")
-                return " / ".join(parts)
+                # Oba splněné → prázdná buňka. Jinak vždy obě čísla,
+                # pořadí T1 / T2 (uživatel scanuje zleva doprava).
+                if t1_def == 0 and t2_def == 0:
+                    return ""
+                return f"{_fmt_points(t1_def)} / {_fmt_points(t2_def)}"
             if key == "projekt":
                 if role == Qt.ItemDataRole.EditRole:
                     return _r(student.projekt)

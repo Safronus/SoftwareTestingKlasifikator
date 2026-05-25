@@ -228,11 +228,18 @@ class MainWindow(QMainWindow):
         komentar_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "komentar"), None)
         if komentar_col is not None:
             header.setSectionResizeMode(komentar_col, QHeaderView.ResizeMode.Stretch)
+        # Sloupec „Chybí" se auto-fituje na obsah — délka stringu se mění
+        # podle toho, jestli mají studenti deficit (prázdná buňka vs.
+        # „X.XXX / Y.YYY"). Bez ResizeToContents by uživatel musel
+        # roztahovat ručně po každé úpravě bonusu.
+        chybi_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "chybi"), None)
+        if chybi_col is not None:
+            header.setSectionResizeMode(chybi_col, QHeaderView.ResizeMode.ResizeToContents)
         # Pevné defaultní šířky z COLUMNS — uživatel si může roztáhnout ručně.
         # Nepoužíváme resizeColumnsToContents, protože po year switch při delších
         # komentářích vytlačí Stretch sloupec mimo viewport.
         for i in range(self.model.columnCount()):
-            if i != komentar_col:
+            if i not in (komentar_col, chybi_col):
                 self.table.setColumnWidth(i, self.model.column_default_width(i))
         # CTFL: po zaškrtnutí se text rozšíří z „Ne" na bold „Ano" — auto-resize
         # column to contents při každé změně dat, aby se text neořezával.
