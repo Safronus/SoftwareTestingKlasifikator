@@ -30,11 +30,22 @@ def test_bonus_fills_multiple_gates():
     assert a.projekt == 10
 
 
-def test_bonus_insufficient_for_full_gate_stops_partial():
+def test_bonus_insufficient_prefers_closer_to_gate():
+    # T1 chybí 5 (10→15), T2 chybí 3 (12→15) → T2 je blíž bráně.
+    # Bonus 6: prvně doplnit T2 (3 → splněno), zbylé 3 do T1 (částečně).
+    # Cíl: aspoň jeden test projde bránou.
     a = suggest_allocation(test1=10, test2=12, projekt=80, total_bonus=6)
-    # 5 do T1, 1 do T2, projekt nic
-    assert a.test1 == 5
-    assert a.test2 == 1
+    assert a.test2 == 3
+    assert a.test1 == 3
+    assert a.projekt == 0
+
+
+def test_bonus_prefers_test_with_more_points():
+    # Konkrétní příklad ze zadání: T1=10, T2=13.8 → T2 je blíž bráně 15.
+    # Bonus 1.2: musí jít celý do T2 (splní bránu), ne do T1.
+    a = suggest_allocation(test1=10, test2=13.8, projekt=100, total_bonus=1.2)
+    assert a.test2 == pytest.approx(1.2)
+    assert a.test1 == 0
     assert a.projekt == 0
 
 

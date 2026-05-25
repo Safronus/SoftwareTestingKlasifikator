@@ -58,13 +58,22 @@ def suggest_allocation(
             alloc[part] = _r(alloc[part] + give_now)
         return give_now
 
-    # 1) Doplnit do brány — priorita: test1, test2, projekt (libovolné pořadí
-    #    by stačilo, ale fixní pořadí dělá výstup deterministický).
+    # 1) Doplnit do brány — priorita podle "nejmenší zbývající potřeba první".
+    #    Cíl: když bonus nestačí na všechny brány, splnit jich co nejvíc
+    #    (test, který má víc bodů, je blíž bráně → dostane bonus dřív, takže
+    #    alespoň jednou bránou projde). Při shodě deficitu drží deterministické
+    #    pořadí test1 < test2 < projekt (kvůli stabilitě výstupu a testů).
     need_t1 = max(0.0, _r(GATE_TEST1 - test1))
     need_t2 = max(0.0, _r(GATE_TEST2 - test2))
     need_pj = max(0.0, _r(GATE_PROJEKT - projekt))
 
-    for part, need in (("test1", need_t1), ("test2", need_t2), ("projekt", need_pj)):
+    gate_order = sorted(
+        (("test1", need_t1), ("test2", need_t2), ("projekt", need_pj)),
+        key=lambda kv: (kv[1] <= 0, kv[1]),
+    )
+    for part, need in gate_order:
+        if need <= 0:
+            continue
         used = give(part, need)
         remaining = _r(remaining - used)
         if remaining <= 0:
