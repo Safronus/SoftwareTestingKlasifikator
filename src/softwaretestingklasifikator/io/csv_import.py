@@ -18,15 +18,16 @@ from softwaretestingklasifikator.config import (
     STAG_CSV_ENCODING,
     STAG_CSV_QUOTECHAR,
 )
+from softwaretestingklasifikator.domain.grading import derive_pokus_from_date
 from softwaretestingklasifikator.domain.models import (
     POKUS_NEODEVZDAL,
-    POKUS_OPRAVNY,
-    POKUS_PO_TERMINU,
-    POKUS_RADNY,
     BonusBreakdown,
     Student,
     YearDeadlines,
 )
+
+# Re-export pro existující testy (`from io.csv_import import derive_pokus_from_date`).
+__all__ = ["derive_pokus_from_date"]
 
 # České názvy měsíců v 2. pádu (jak je formátuje Moodle: "9. května 2026").
 CZECH_MONTHS_GENITIVE: dict[str, int] = {
@@ -211,29 +212,6 @@ def read_project_dates_csv(path: Path) -> list[ProjectDateRow]:
                 submission_date=_parse_czech_date(raw.get(date_col)),
             ))
     return rows
-
-
-def derive_pokus_from_date(
-    submission_date: date | None,
-    deadlines: YearDeadlines | None,
-) -> str:
-    """Odvodí pokus podle data odevzdání a deadlinů ročníku.
-
-    None → neodevzdal. <= 1. deadline → radny. <= 2. deadline → opravny.
-    Jinak po termínu. Když deadliny nejsou nastavené a datum existuje,
-    spadne na řádný pokus (neumíme rozhodnout).
-    """
-    if submission_date is None:
-        return POKUS_NEODEVZDAL
-    if deadlines is None:
-        return POKUS_RADNY
-    if deadlines.first and submission_date <= deadlines.first:
-        return POKUS_RADNY
-    if deadlines.second and submission_date <= deadlines.second:
-        return POKUS_OPRAVNY
-    if deadlines.first or deadlines.second:
-        return POKUS_PO_TERMINU
-    return POKUS_RADNY
 
 
 def apply_project_dates(

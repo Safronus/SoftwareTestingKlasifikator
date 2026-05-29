@@ -29,6 +29,7 @@ from softwaretestingklasifikator.config import (
     SUBJECT_CODE,
 )
 from softwaretestingklasifikator.domain.export_state import compute_export_hash
+from softwaretestingklasifikator.domain.grading import derive_pokus_from_date
 from softwaretestingklasifikator.domain.models import (
     POKUS_RADNY,
     BonusBreakdown,
@@ -47,7 +48,6 @@ from softwaretestingklasifikator.io.csv_import import (
     apply_project_dates,
     apply_test_scores,
     dedup_project_dates,
-    derive_pokus_from_date,
     merge_students,
     read_project_dates_csv,
     read_roakce_csv,
@@ -350,6 +350,7 @@ class MainWindow(QMainWindow):
         self._current_year_data = data
         if data is None:
             self.model.set_repetent_os_cisla(set())
+            self.model.set_deadlines(None)
             self.model.set_students([])
             self.stats_panel.set_stats(compute_stats(YearData(year=0)), deadlines=None)
             for a in (self.action_export, self.action_import, self.action_import_tests,
@@ -366,6 +367,9 @@ class MainWindow(QMainWindow):
         # renderu měla správné podbarvení řádků.
         repetents = previous_years_os_cisla(self.data_dir, data.year)
         self.model.set_repetent_os_cisla(repetents)
+        # Deadliny musí být v modelu před editací — re-derivace pokusu při
+        # ruční změně data odevzdání je potřebuje.
+        self.model.set_deadlines(data.deadlines)
         self.model.set_students(data.students)
         # Defaultně řadit po Příjmení vzestupně.
         prijmeni_col = next((i for i, c in enumerate(COLUMNS) if c[0] == "prijmeni"), 1)
@@ -555,6 +559,9 @@ class MainWindow(QMainWindow):
         if self._current_year_data is None:
             return
         self._current_year_data.deadlines = deadlines
+        # Sync deadlines do modelu — re-derivace pokusu při inline editaci
+        # data odevzdání v tabulce.
+        self.model.set_deadlines(deadlines)
         for s in self._current_year_data.students:
             if s.datum_odevzdani is not None:
                 s.pokus = derive_pokus_from_date(s.datum_odevzdani, deadlines)

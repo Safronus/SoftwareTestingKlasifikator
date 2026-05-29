@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 from softwaretestingklasifikator.config import (
     GATE_PROJEKT,
@@ -12,7 +13,37 @@ from softwaretestingklasifikator.config import (
     MAX_PROJEKT,
     POINTS_DECIMALS,
 )
-from softwaretestingklasifikator.domain.models import POKUS_NEODEVZDAL, Student
+from softwaretestingklasifikator.domain.models import (
+    POKUS_NEODEVZDAL,
+    POKUS_OPRAVNY,
+    POKUS_PO_TERMINU,
+    POKUS_RADNY,
+    Student,
+    YearDeadlines,
+)
+
+
+def derive_pokus_from_date(
+    submission_date: date | None,
+    deadlines: YearDeadlines | None,
+) -> str:
+    """Odvodí pokus podle data odevzdání a deadlinů ročníku.
+
+    None → neodevzdal. <= 1. deadline → radny. <= 2. deadline → opravny.
+    Jinak po termínu. Když deadliny nejsou nastavené a datum existuje,
+    spadne na řádný pokus (neumíme rozhodnout).
+    """
+    if submission_date is None:
+        return POKUS_NEODEVZDAL
+    if deadlines is None:
+        return POKUS_RADNY
+    if deadlines.first and submission_date <= deadlines.first:
+        return POKUS_RADNY
+    if deadlines.second and submission_date <= deadlines.second:
+        return POKUS_OPRAVNY
+    if deadlines.first or deadlines.second:
+        return POKUS_PO_TERMINU
+    return POKUS_RADNY
 
 
 def _r(value: float) -> float:

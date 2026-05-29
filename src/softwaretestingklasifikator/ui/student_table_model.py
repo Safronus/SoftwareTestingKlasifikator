@@ -20,11 +20,16 @@ from softwaretestingklasifikator.config import (
     POINTS_DECIMALS,
 )
 from softwaretestingklasifikator.domain.bonus import suggest_allocation
-from softwaretestingklasifikator.domain.grading import GradeResult, evaluate
+from softwaretestingklasifikator.domain.grading import (
+    GradeResult,
+    derive_pokus_from_date,
+    evaluate,
+)
 from softwaretestingklasifikator.domain.models import (
     POKUS_LABELS,
     POKUS_VALUES,
     Student,
+    YearDeadlines,
     _normalize_pokus,
 )
 from softwaretestingklasifikator.ui.theme import (
@@ -137,6 +142,9 @@ class StudentTableModel(QAbstractTableModel):
         self._students: list[Student] = students or []
         self._repetent_os_cisla: set[str] = set()
         self._top_ranks: dict[int, int] = {}
+        # Deadliny ročníku — používají se k re-derivaci pokusu, když
+        # uživatel ručně změní datum odevzdání v tabulce.
+        self._deadlines: YearDeadlines | None = None
         # Cache GradeResult per row — invaliduje se při set_students /
         # emit_row_changed. Bez ní by se evaluate() volalo pro každou
         # buňku × roli (~5000+ volání na refresh) a scroll znatelně sekal.
@@ -179,6 +187,12 @@ class StudentTableModel(QAbstractTableModel):
         if 0 <= row < len(self._students):
             return self._students[row]
         return None
+
+    def set_deadlines(self, deadlines: YearDeadlines | None) -> None:
+        """Nastaví deadliny ročníku. Používá se k re-derivaci pokusu při
+        ruční změně data odevzdání v tabulce. Hodnoty studentů se tu
+        nepřepočítávají — to dělá MainWindow při změně deadlinů."""
+        self._deadlines = deadlines
 
     def set_repetent_os_cisla(self, os_cisla: set[str]) -> None:
         self.beginResetModel()
@@ -730,6 +744,12 @@ class StudentTableModel(QAbstractTableModel):
                     except ValueError:
                         from datetime import datetime
                         student.datum_odevzdani = datetime.strptime(s, DATE_FORMAT_PY).date()
+                # Re-derive pokus podle nového data + uložených deadlinů.
+                # Změna data se musí propagovat do sloupce „Pokus" i do
+                # přepočtu známky (znamka závisí na pokus + odevzdano_ok).
+                student.pokus = derive_pokus_from_date(
+                    student.datum_odevzdani, self._deadlines,
+                )
             elif key == "pokus":
                 v = str(value).strip()
                 if v in POKUS_VALUES:
