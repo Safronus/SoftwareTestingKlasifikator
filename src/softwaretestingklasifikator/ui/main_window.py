@@ -65,6 +65,7 @@ from softwaretestingklasifikator.io.storage import (
 )
 from softwaretestingklasifikator.ui.delegates import (
     CenteredCheckboxDelegate,
+    ConfirmCheckDelegate,
     PointsDelegate,
     PokusDelegate,
 )
@@ -289,15 +290,41 @@ class MainWindow(QMainWindow):
             self.table.setItemDelegateForColumn(
                 dochazka_col, CenteredCheckboxDelegate(self.table),
             )
+        # „Ukončil studium" — zapnutí je destruktivní (student se skryje),
+        # tak si ho ohlídáme potvrzovacím dialogem.
+        ukoncil_col = next(
+            (i for i, c in enumerate(COLUMNS) if c[0] == "ukoncil"), None,
+        )
+        if ukoncil_col is not None:
+            self.table.setItemDelegateForColumn(
+                ukoncil_col,
+                ConfirmCheckDelegate(
+                    "Ukončit studium?",
+                    "Opravdu označit studenta jako „Ukončil studium“?\n\n"
+                    "Student se skryje z tabulky (znovu ho zobrazíš tlačítkem "
+                    "„Zobrazit ukončené“).",
+                    self.table,
+                ),
+            )
 
-        # --- Left dock: statistika ---------------------------------
+        # --- Left dock: statistika (defaultně skrytý) ----------------
         self.stats_panel = StatsPanel()
         self.stats_panel.deadlinesChanged.connect(self._on_deadlines_changed)
-        stats_dock = QDockWidget("Statistika ročníku", self)
-        stats_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
-        stats_dock.setWidget(self.stats_panel)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, stats_dock)
-        stats_dock.setMinimumWidth(210)
+        self.stats_dock = QDockWidget("Statistika ročníku", self)
+        self.stats_dock.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.stats_dock.setWidget(self.stats_panel)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.stats_dock)
+        self.stats_dock.setMinimumWidth(210)
+        # Defaultně skrytý — na FullHD ubíral místo sloupci Komentář.
+        self.stats_dock.hide()
+        # Přepínač viditelnosti do toolbaru (checkable, drží se stavu docku).
+        toggle_stats = self.stats_dock.toggleViewAction()
+        toggle_stats.setText("📊 Statistika")
+        toggle_stats.setToolTip("Zobrazit / skrýt boční panel se statistikou ročníku.")
+        toolbar.addSeparator()
+        toolbar.addAction(toggle_stats)
 
         # --- Status bar --------------------------------------------
         self.setStatusBar(QStatusBar())

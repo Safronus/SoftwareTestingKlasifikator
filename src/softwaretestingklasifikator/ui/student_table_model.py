@@ -596,6 +596,10 @@ class StudentTableModel(QAbstractTableModel):
                 else:
                     lines.append("  Test 2: splněno ✓")
                 return "\n".join(lines)
+            if key == "komentar":
+                # Sloupec bývá úzký a text se ořezává „…". Tooltip vrátí
+                # celou poznámku (prázdný → None, ať se nezobrazuje bublina).
+                return student.komentar or None
             if key == "znamka" and not result.gate.all_ok:
                 reasons = []
                 if not result.gate.test1_ok:

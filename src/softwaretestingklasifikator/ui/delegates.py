@@ -7,10 +7,12 @@ from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QDoubleSpinBox,
+    QMessageBox,
     QStyle,
     QStyledItemDelegate,
     QStyleOptionButton,
     QStyleOptionViewItem,
+    QWidget,
 )
 
 from softwaretestingklasifikator.config import POINTS_DECIMALS
@@ -139,6 +141,71 @@ class CenteredCheckboxDelegate(QStyledItemDelegate):
             return False
 
         cs = Qt.CheckState(check_state)
+        new_state = (
+            Qt.CheckState.Unchecked
+            if cs == Qt.CheckState.Checked
+            else Qt.CheckState.Checked
+        )
+        return model.setData(index, new_state, Qt.ItemDataRole.CheckStateRole)
+
+
+class ConfirmCheckDelegate(QStyledItemDelegate):
+    """Checkbox delegate, který si před ZAPNUTÍM vyžádá potvrzení dialogem.
+
+    Vypnutí (uncheck) potvrzení nevyžaduje. Používá se u sloupce „Ukončil
+    studium" — omylem zaškrtnutý student by se skryl z tabulky, takže
+    zapnutí chráníme potvrzovacím dialogem.
+
+    Zachovává standardní vykreslení buňky (text „Ano"/„Ne" + checkbox
+    vlevo) — přebírá jen `editorEvent`, kde přeruší toggle a zeptá se.
+    """
+
+    def __init__(self, title: str, text: str, parent=None) -> None:
+        super().__init__(parent)
+        self._title = title
+        self._text = text
+
+    def editorEvent(self, event, model, option, index):  # type: ignore[override]
+        if not (index.flags() & Qt.ItemFlag.ItemIsUserCheckable):
+            return super().editorEvent(event, model, option, index)
+        check_state = index.data(Qt.ItemDataRole.CheckStateRole)
+        if check_state is None:
+            return super().editorEvent(event, model, option, index)
+
+        # Rozpoznej událost, která by přepnula stav — mirror Qt defaultu:
+        # klik levým tlačítkem uvnitř check-indicator rectu, nebo Space/Select.
+        if event.type() == QEvent.Type.MouseButtonRelease:
+            if event.button() != Qt.MouseButton.LeftButton:
+                return False
+            opt = QStyleOptionViewItem(option)
+            self.initStyleOption(opt, index)
+            widget = opt.widget
+            style = widget.style() if widget else QApplication.style()
+            check_rect = style.subElementRect(
+                QStyle.SubElement.SE_ItemViewItemCheckIndicator, opt, widget,
+            )
+            if not check_rect.contains(event.position().toPoint()):
+                return False
+        elif event.type() == QEvent.Type.KeyPress:
+            if event.key() not in (Qt.Key.Key_Space, Qt.Key.Key_Select):
+                return super().editorEvent(event, model, option, index)
+        else:
+            return super().editorEvent(event, model, option, index)
+
+        cs = Qt.CheckState(check_state)
+        # Potvrzení jen při přechodu Unchecked → Checked. Parent dialogu je
+        # delegátův parent widget (QTableView) — dialog se vycentruje na okno.
+        if cs == Qt.CheckState.Unchecked:
+            parent = self.parent() if isinstance(self.parent(), QWidget) else None
+            answer = QMessageBox.question(
+                parent,
+                self._title,
+                self._text,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return True  # zrušeno uživatelem — nic nepřepínej
         new_state = (
             Qt.CheckState.Unchecked
             if cs == Qt.CheckState.Checked
